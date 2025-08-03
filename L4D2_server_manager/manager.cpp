@@ -16,15 +16,21 @@
 #include <string.h>
 #include <string>
 
-// 转换宽字符串到多字节
+// 将一段数据视为UTF-16编码，将其转化为GBK编码并返回
 static char* WCharToChar(LPCWSTR wstr, char* buf, int buf_len) {
     WideCharToMultiByte(CP_ACP, 0, wstr, -1, buf, buf_len, NULL, NULL);
     return buf;
 }
 
-// 转换多字节到宽字符串
+// 将一段数据视为GBK编码，将其转化为UTF-16编码并返回
 static WCHAR* CharToWChar(const char* str, WCHAR* buf, int buf_len) {
     MultiByteToWideChar(CP_ACP, 0, str, -1, buf, buf_len);
+    return buf;
+}
+
+// 将一段数据视为UTF-8编码，将其转化为UTF-16编码并返回
+static WCHAR* CharToWChar_ser(const char* str, WCHAR* buf, int buf_len) {
+    MultiByteToWideChar(CP_UTF8, 0, str, -1, buf, buf_len);
     return buf;
 }
 
@@ -79,7 +85,7 @@ DWORD WINAPI HandleConnectRequest(LPVOID param) {
                 dep_output, sizeof(dep_output),
                 err_msg, sizeof(err_msg)
             );
-            CharToWChar(dep_output, output_w, sizeof(output_w) / sizeof(WCHAR));
+            CharToWChar_ser(dep_output, output_w, sizeof(output_w) / sizeof(WCHAR));
             AddLog(hWnd, output_w);
 
             if (dep_success) {
@@ -215,8 +221,8 @@ DWORD WINAPI HandleDeployServer(LPVOID param) {
     );
 
     WCHAR output_w[4096], err_msg_w[256];
-    CharToWChar(output, output_w, sizeof(output_w) / sizeof(WCHAR));
-    CharToWChar(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
+    CharToWChar_ser(output, output_w, sizeof(output_w) / sizeof(WCHAR));
+    CharToWChar_ser(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
 
     AddLog(hWnd, output_w);
     if (success) {
@@ -272,7 +278,7 @@ DWORD WINAPI HandleGetStatus(LPVOID param) {
     }
     else {
         WCHAR err_msg_w[256];
-        CharToWChar(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
+        CharToWChar_ser(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
         AddLog(hWnd, err_msg_w);
     }
 

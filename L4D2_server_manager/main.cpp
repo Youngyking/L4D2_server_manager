@@ -1,14 +1,17 @@
-﻿
+﻿/*
+入口程序，实现项目主逻辑
+*/
+
 #define WIN32_LEAN_AND_MEAN  // 禁用 Windows 旧版头文件中的冗余定义
 #include <winsock2.h>        // 只包含新版 Winsock 2.0
 #include <ws2tcpip.h>        
 #pragma comment(lib, "ws2_32.lib")  // 链接 Winsock 2.0 库
 #include "framework.h"
-#include "L4D2_server_manager.h"
 #include "resource.h"
 #include "gui.h"
 #include "manager.h"
 #include "ssh.h"
+#include "resource.h"
 #include <fcntl.h>
 #include <string.h>
 

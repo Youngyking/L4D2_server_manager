@@ -133,7 +133,6 @@
     <ClInclude Include="cJSON.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="gui.h" />
-    <ClInclude Include="L4D2_server_manager.h" />
     <ClInclude Include="manager.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="ssh.h" />
@@ -142,7 +141,7 @@
   <ItemGroup>
     <ClCompile Include="cJSON.cpp" />
     <ClCompile Include="gui.cpp" />
-    <ClCompile Include="L4D2_server_manager.cpp" />
+    <ClCompile Include="main.cpp" />
     <ClCompile Include="manager.cpp" />
     <ClCompile Include="ssh.cpp" />
   </ItemGroup>

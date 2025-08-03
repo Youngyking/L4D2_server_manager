@@ -1,10 +1,14 @@
-// 在所有头文件包含前添加（建议放在stdafx.h 或 pch.h 中）
+/*
+    为主程序文件L4D2_server_manager.cpp封装GUI窗口的具体创建过程，
+    并为manager.cpp提供日志记录接口
+*/
+
+
 #define WIN32_LEAN_AND_MEAN  // 禁用 Windows 旧版头文件中的冗余定义
-#include <winsock2.h>        // 只包含新版 Winsock 2.0
-#include <ws2tcpip.h>        // 如需使用更现代的网络函数（如 getaddrinfo），可包含此文件
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #pragma comment(lib, "ws2_32.lib")  // 链接 Winsock 2.0 库
 #include "framework.h"
-#include "L4D2_server_manager.h"
 #include "resource.h"
 #include "gui.h"
 #include <fcntl.h>
@@ -29,7 +33,7 @@ void CreateAllControls(HWND hWnd, HINSTANCE hInst) {
     CreateWindowW(L"STATIC", L"服务器IP:",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
         30, 30, 80, 20, hWnd, NULL, hInst, NULL);
-    CreateWindowW(L"EDIT", L"192.168.1.1",
+    CreateWindowW(L"EDIT", L"124.222.57.56",
         WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
         120, 30, 200, 25, hWnd, (HMENU)IDC_IP_EDIT, hInst, NULL);
 
@@ -37,7 +41,7 @@ void CreateAllControls(HWND hWnd, HINSTANCE hInst) {
     CreateWindowW(L"STATIC", L"用户名:",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
         350, 30, 80, 20, hWnd, NULL, hInst, NULL);
-    CreateWindowW(L"EDIT", L"steam",
+    CreateWindowW(L"EDIT", L"root",
         WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
         440, 30, 150, 25, hWnd, (HMENU)IDC_USER_EDIT, hInst, NULL);
 

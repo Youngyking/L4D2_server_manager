@@ -1,20 +1,49 @@
-// 在所有头文件包含前添加（建议放在stdafx.h 或 pch.h 中）
+/*
+实现对manager.cpp的底层协议支持为manager.cpp提供API
+*/
+
 #define WIN32_LEAN_AND_MEAN  // 禁用 Windows 旧版头文件中的冗余定义
-#include <winsock2.h>        // 只包含新版 Winsock 2.0
-#include <ws2tcpip.h>        // 如需使用更现代的网络函数（如 getaddrinfo），可包含此文件
+#define _CRT_SECURE_NO_WARNINGS //允许使用fopen
+#include <winsock2.h>
+#include <ws2tcpip.h> 
 #pragma comment(lib, "ws2_32.lib")  // 链接 Winsock 2.0 库
 #include "ssh.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
-#include <sys/stat.h>  // 用于本地文件检查
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <stdio.h>
-#include <sys/stat.h>       // 用于struct stat
-#include <libssh/libssh.h>  // 核心SSH功能
-#include <libssh/sftp.h>    // SFTP功能（包含sftp_file定义）
+#include <sys/stat.h>
+#include <libssh/libssh.h>
+#include <libssh/sftp.h>
+
+//doc_to_unix
+static bool convert_crlf_to_lf(const char* input_path, const char* temp_path) {
+    FILE* in_file = fopen(input_path, "rb");
+    if (!in_file) return false;
+
+    FILE* out_file = fopen(temp_path, "wb");
+    if (!out_file) {
+        fclose(in_file);
+        return false;
+    }
+
+    int c;
+    while ((c = fgetc(in_file)) != EOF) {
+        if (c == '\r') {
+            // 跳过CR，只保留LF
+            continue;
+        }
+        fputc(c, out_file);
+    }
+
+    fclose(in_file);
+    fclose(out_file);
+    return true;
+}
 
 
 // 初始化SSH上下文
@@ -110,19 +139,51 @@ static bool create_remote_dir(ssh_session session, const char* dir, char* err_ms
     return rc == SSH_OK;
 }
 
-// 上传本地文件到远程（修正版）
+// 上传文件到远程服务器（带换行符转换功能）
 static bool upload_file(ssh_session session, const char* local_path, const char* remote_path, char* err_msg, int err_len) {
-    // 检查本地文件是否存在
-    struct stat file_stat;
-    if (stat(local_path, &file_stat) != 0) {
-        snprintf(err_msg, err_len, "本地文件不存在: %s", local_path);
+    // 创建临时文件路径
+    char temp_path[256];
+    snprintf(temp_path, sizeof(temp_path), "%s.tmp", local_path);
+
+    // 转换CRLF为LF
+    FILE* in_file = fopen(local_path, "rb");
+    if (!in_file) {
+        snprintf(err_msg, err_len, "无法打开本地文件: %s", local_path);
         return false;
     }
 
-    // 打开SFTP会话
+    FILE* out_file = fopen(temp_path, "wb");
+    if (!out_file) {
+        snprintf(err_msg, err_len, "无法创建临时文件: %s", temp_path);
+        fclose(in_file);
+        return false;
+    }
+
+    int c;
+    while ((c = fgetc(in_file)) != EOF) {
+        if (c == '\r') {
+            // 跳过CR，只保留LF
+            continue;
+        }
+        fputc(c, out_file);
+    }
+
+    fclose(in_file);
+    fclose(out_file);
+
+    // 检查临时文件是否存在
+    struct stat file_stat;
+    if (stat(temp_path, &file_stat) != 0) {
+        snprintf(err_msg, err_len, "无法访问临时文件: %s", temp_path);
+        remove(temp_path);
+        return false;
+    }
+
+    // 初始化SFTP会话
     sftp_session sftp = sftp_new(session);
     if (!sftp) {
         snprintf(err_msg, err_len, "创建SFTP会话失败: %s", ssh_get_error(session));
+        remove(temp_path);
         return false;
     }
 
@@ -130,23 +191,26 @@ static bool upload_file(ssh_session session, const char* local_path, const char*
     if (rc != SSH_OK) {
         snprintf(err_msg, err_len, "初始化SFTP失败: %s", sftp_get_error(sftp));
         sftp_free(sftp);
+        remove(temp_path);
         return false;
     }
 
-    // 检查远程文件是否存在
+    // 检查远程文件是否已存在
     sftp_attributes remote_attrs = sftp_stat(sftp, remote_path);
     if (remote_attrs) {
         sftp_attributes_free(remote_attrs);
         snprintf(err_msg, err_len, "远程文件已存在，跳过上传");
         sftp_free(sftp);
+        remove(temp_path);
         return true;
     }
 
-    // 打开本地文件读取
+    // 打开临时文件进行读取
     FILE* local_file;
-    if (fopen_s(&local_file, local_path, "rb") != 0) {  // 使用安全函数fopen_s
-        snprintf(err_msg, err_len, "打开本地文件失败");
+    if (fopen_s(&local_file, temp_path, "rb") != 0) {
+        snprintf(err_msg, err_len, "打开临时文件失败");
         sftp_free(sftp);
+        remove(temp_path);
         return false;
     }
 
@@ -156,6 +220,7 @@ static bool upload_file(ssh_session session, const char* local_path, const char*
         snprintf(err_msg, err_len, "创建远程文件失败: %s", sftp_get_error(sftp));
         fclose(local_file);
         sftp_free(sftp);
+        remove(temp_path);
         return false;
     }
 
@@ -168,6 +233,7 @@ static bool upload_file(ssh_session session, const char* local_path, const char*
             fclose(local_file);
             sftp_close(remote_file);
             sftp_free(sftp);
+            remove(temp_path);
             return false;
         }
     }
@@ -176,6 +242,8 @@ static bool upload_file(ssh_session session, const char* local_path, const char*
     fclose(local_file);
     sftp_close(remote_file);
     sftp_free(sftp);
+    remove(temp_path); // 删除临时文件
+
     snprintf(err_msg, err_len, "文件上传成功");
     return true;
 }

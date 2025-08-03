@@ -1,3 +1,7 @@
+/*
+基于ssh.cpp提供的ssh与sftp接口封装窗口控件的功能
+*/
+
 #define WIN32_LEAN_AND_MEAN
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -79,14 +83,14 @@ DWORD WINAPI HandleConnectRequest(LPVOID param) {
             AddLog(hWnd, output_w);
 
             if (dep_success) {
-                UpdateConnectionStatus(hWnd, L"已连接", TRUE);
+                UpdateConnectionStatus(hWnd, L"已连接，且依赖安装成功", TRUE);
                 HandleGetStatus(hWnd);  // 刷新状态
                 HandleGetInstances(hWnd);
             }
             else {
                 CharToWChar(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
                 AddLog(hWnd, err_msg_w);
-                UpdateConnectionStatus(hWnd, L"依赖安装失败", FALSE);
+                UpdateConnectionStatus(hWnd, L"已连接，但依赖安装失败", FALSE);
             }
         }
     }

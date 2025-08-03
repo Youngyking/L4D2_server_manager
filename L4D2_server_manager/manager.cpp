@@ -111,7 +111,10 @@ DWORD WINAPI HandleConnectRequest(LPVOID param) {
 DWORD WINAPI HandleStartInstance(LPVOID param) {
     HWND hWnd = (HWND)param;
     if (!g_ssh_ctx || !g_ssh_ctx->is_connected) {
-        AddLog(hWnd, L"未连接到服务器，无法启动实例");
+        // 提示信息使用CharToWChar转换（GBK->UTF-16）
+        WCHAR logMsg[256];
+        CharToWChar("未连接到服务器，无法启动实例", logMsg, sizeof(logMsg) / sizeof(WCHAR));
+        AddLog(hWnd, logMsg);
         return 0;
     }
 
@@ -119,11 +122,15 @@ DWORD WINAPI HandleStartInstance(LPVOID param) {
     WCHAR port_w[16];
     GetWindowTextW(GetDlgItem(hWnd, IDC_PORT_EDIT), port_w, sizeof(port_w) / sizeof(WCHAR));
     char port[16];
-    WideCharToMultiByte(CP_ACP, 0, port_w, -1, port, sizeof(port), NULL, NULL);
+    WCharToChar(port_w, port, sizeof(port));  // 使用现有转换函数
 
-    AddLog(hWnd, L"正在启动端口为 ");
+    // 提示信息使用CharToWChar转换
+    WCHAR logPrefix1[64], logPrefix3[64];
+    CharToWChar("正在启动端口为 ", logPrefix1, sizeof(logPrefix1) / sizeof(WCHAR));
+    CharToWChar(" 的实例...", logPrefix3, sizeof(logPrefix3) / sizeof(WCHAR));
+    AddLog(hWnd, logPrefix1);
     AddLog(hWnd, port_w);
-    AddLog(hWnd, L" 的实例...");
+    AddLog(hWnd, logPrefix3);
 
     // 构造SSH命令
     char cmd[256];
@@ -137,18 +144,24 @@ DWORD WINAPI HandleStartInstance(LPVOID param) {
         err_msg, sizeof(err_msg)
     );
 
-    // 转换编码并输出日志
+    // 服务器脚本输出使用CharToWChar_ser转换（UTF-8->UTF-16）
     WCHAR output_w[4096], err_msg_w[256];
-    MultiByteToWideChar(CP_ACP, 0, output, -1, output_w, sizeof(output_w) / sizeof(WCHAR));
-    MultiByteToWideChar(CP_ACP, 0, err_msg, -1, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
+    CharToWChar_ser(output, output_w, sizeof(output_w) / sizeof(WCHAR));
+    CharToWChar_ser(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
 
     AddLog(hWnd, output_w);
     if (success) {
-        AddLog(hWnd, L"实例启动成功");
+        // 提示信息使用CharToWChar转换
+        WCHAR successMsg[64];
+        CharToWChar("实例启动成功", successMsg, sizeof(successMsg) / sizeof(WCHAR));
+        AddLog(hWnd, successMsg);
         HandleGetInstances(hWnd);  // 刷新实例列表
     }
     else {
-        AddLog(hWnd, L"启动失败: ");
+        // 提示信息使用CharToWChar转换
+        WCHAR failPrefix[64];
+        CharToWChar("启动失败: ", failPrefix, sizeof(failPrefix) / sizeof(WCHAR));
+        AddLog(hWnd, failPrefix);
         AddLog(hWnd, err_msg_w);
     }
 
@@ -159,7 +172,10 @@ DWORD WINAPI HandleStartInstance(LPVOID param) {
 DWORD WINAPI HandleStopInstance(LPVOID param) {
     HWND hWnd = (HWND)param;
     if (!g_ssh_ctx || !g_ssh_ctx->is_connected) {
-        AddLog(hWnd, L"未连接到服务器，无法停止实例");
+        // 提示信息使用CharToWChar转换（GBK->UTF-16）
+        WCHAR logMsg[256];
+        CharToWChar("未连接到服务器，无法停止实例", logMsg, sizeof(logMsg) / sizeof(WCHAR));
+        AddLog(hWnd, logMsg);
         return 0;
     }
 
@@ -167,11 +183,15 @@ DWORD WINAPI HandleStopInstance(LPVOID param) {
     WCHAR port_w[16];
     GetWindowTextW(GetDlgItem(hWnd, IDC_PORT_EDIT), port_w, sizeof(port_w) / sizeof(WCHAR));
     char port[16];
-    WideCharToMultiByte(CP_ACP, 0, port_w, -1, port, sizeof(port), NULL, NULL);
+    WCharToChar(port_w, port, sizeof(port));  // 使用现有转换函数
 
-    AddLog(hWnd, L"正在停止端口为 ");
+    // 提示信息使用CharToWChar转换
+    WCHAR logPrefix1[64], logPrefix3[64];
+    CharToWChar("正在停止端口为 ", logPrefix1, sizeof(logPrefix1) / sizeof(WCHAR));
+    CharToWChar(" 的实例...", logPrefix3, sizeof(logPrefix3) / sizeof(WCHAR));
+    AddLog(hWnd, logPrefix1);
     AddLog(hWnd, port_w);
-    AddLog(hWnd, L" 的实例...");
+    AddLog(hWnd, logPrefix3);
 
     // 构造SSH命令
     char cmd[256];
@@ -185,18 +205,24 @@ DWORD WINAPI HandleStopInstance(LPVOID param) {
         err_msg, sizeof(err_msg)
     );
 
-    // 转换编码并输出日志
+    // 服务器脚本输出使用CharToWChar_ser转换（UTF-8->UTF-16）
     WCHAR output_w[4096], err_msg_w[256];
-    MultiByteToWideChar(CP_ACP, 0, output, -1, output_w, sizeof(output_w) / sizeof(WCHAR));
-    MultiByteToWideChar(CP_ACP, 0, err_msg, -1, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
+    CharToWChar_ser(output, output_w, sizeof(output_w) / sizeof(WCHAR));
+    CharToWChar_ser(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
 
     AddLog(hWnd, output_w);
     if (success) {
-        AddLog(hWnd, L"实例停止成功");
+        // 提示信息使用CharToWChar转换
+        WCHAR successMsg[64];
+        CharToWChar("实例停止成功", successMsg, sizeof(successMsg) / sizeof(WCHAR));
+        AddLog(hWnd, successMsg);
         HandleGetInstances(hWnd);  // 刷新实例列表
     }
     else {
-        AddLog(hWnd, L"停止失败: ");
+        // 提示信息使用CharToWChar转换
+        WCHAR failPrefix[64];
+        CharToWChar("停止失败: ", failPrefix, sizeof(failPrefix) / sizeof(WCHAR));
+        AddLog(hWnd, failPrefix);
         AddLog(hWnd, err_msg_w);
     }
 

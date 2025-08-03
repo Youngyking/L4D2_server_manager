@@ -220,7 +220,7 @@ DWORD WINAPI HandleDeployServer(LPVOID param) {
 
     AddLog(hWnd, output_w);
     if (success) {
-        AddLog(hWnd, L"服务器部署完成");
+        AddLog(hWnd, L"服务器部署/更新完成");
         HandleGetStatus(hWnd);  // 刷新状态
     }
     else {

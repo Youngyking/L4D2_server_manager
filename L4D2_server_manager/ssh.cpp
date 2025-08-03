@@ -1,5 +1,5 @@
 /*
-实现对manager.cpp的底层协议支持为manager.cpp提供API
+通过封装底层协议实现细节，实现对manager.cpp和gui.cpp的底层协议支持
 */
 
 #define WIN32_LEAN_AND_MEAN  // 禁用 Windows 旧版头文件中的冗余定义

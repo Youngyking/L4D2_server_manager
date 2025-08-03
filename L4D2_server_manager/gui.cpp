@@ -8,11 +8,13 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #pragma comment(lib, "ws2_32.lib")  // 链接 Winsock 2.0 库
+#include <fcntl.h>
+#include <string.h>
+#include "cJSON.h"
 #include "framework.h"
 #include "resource.h"
 #include "gui.h"
-#include <fcntl.h>
-#include <string.h>
+#include "ssh.h"
 
 // 初始化公共控件（ListView等需要）
 void InitCommonControlsExWrapper() {
@@ -203,41 +205,84 @@ void UpdateSystemStatus(HWND hWnd, LPCWSTR serverStatus, LPCWSTR smStatus,
     SetWindowTextW(GetDlgItem(hWnd, IDC_PLUGIN_COUNT), pluginCount);
 }
 
-// 更新实例列表（简化示例，实际需解析JSON）
+// 更新实例列表
 void UpdateInstanceList(HWND hWnd, const char* instancesJson) {
     HWND hList = GetDlgItem(hWnd, IDC_INSTANCE_LIST);
     ListView_DeleteAllItems(hList);  // 清空现有项
 
-    // 此处应解析JSON（建议使用cJSON等库），示例直接添加测试项
-   // 定义一次LVITEMW变量，作用域覆盖所有测试项
+    if (!instancesJson || *instancesJson == '\0') {
+        AddLog(hWnd, L"获取实例列表失败：空JSON数据");
+        return;
+    }
+
+    // 解析JSON根对象
+    cJSON* root = cJSON_Parse(instancesJson);
+    if (!root) {
+        AddLog(hWnd, L"解析实例解析实例列表JSON失败");
+        return;
+    }
+
     LVITEMW lvi = { 0 };
-    lvi.mask = LVIF_TEXT;  // 统一设置mask，指定使用文本字段
+    lvi.mask = LVIF_TEXT;  // 统一设置文本字段
+    int itemIndex = 0;
 
-    // 测试项1
-    lvi.iItem = 0;  // 修改行索引
-    WCHAR status0[20] = L"运行中";
-    lvi.pszText = status0;  // 赋值状态文本
-    ListView_InsertItem(hList, &lvi);
+    // 遍历所有实例对象
+    cJSON* currentInstance = NULL;
+    cJSON_ArrayForEach(currentInstance, root) {
+        // 获取实例名称（键名）
+        const char* instanceName = currentInstance->string;
+        if (!instanceName) continue;
 
-    // 设置其他列
-    ListView_SetItemText(hList, 0, 1, const_cast<LPWSTR>(L"主服_战役"));
-    ListView_SetItemText(hList, 0, 2, const_cast<LPWSTR>(L"27015"));
-    ListView_SetItemText(hList, 0, 3, const_cast<LPWSTR>(L"c1m1_hotel"));
-    ListView_SetItemText(hList, 0, 4, const_cast<LPWSTR>(L"停止"));
+        // 转换实例名称为宽字符
+        WCHAR nameW[256] = { 0 };
+        MultiByteToWideChar(CP_UTF8, 0, instanceName, -1, nameW, sizeof(nameW) / sizeof(WCHAR));
 
+        // 获取实例属性
+        cJSON* port = cJSON_GetObjectItem(currentInstance, "port");
+        cJSON* map = cJSON_GetObjectItem(currentInstance, "map");
+        cJSON* running = cJSON_GetObjectItem(currentInstance, "running");
 
-    // 测试项2（复用同一个lvi变量）
-    lvi.iItem = 1;  // 仅修改行索引
-    WCHAR status1[20] = L"已停止";
-    lvi.pszText = status1;  // 赋值新的状态文本
-    ListView_InsertItem(hList, &lvi);
+        // 验证必要字段
+        if (!port || !map || !running || !cJSON_IsString(port) || !cJSON_IsString(map) || !cJSON_IsBool(running)) {
+            AddLog(hWnd, L"实例数据格式错误，跳过该实例");
+            continue;
+        }
 
-    // 设置其他列
-    ListView_SetItemText(hList, 1, 1, const_cast<LPWSTR>(L"副服_对抗"));
-    ListView_SetItemText(hList, 1, 2, const_cast<LPWSTR>(L"27016"));
-    ListView_SetItemText(hList, 1, 3, const_cast<LPWSTR>(L"c5m1_waterfront"));
-    ListView_SetItemText(hList, 1, 4, const_cast<LPWSTR>(L"启动"));
+        // 转换端口和地图为宽字符
+        WCHAR portW[16] = { 0 };
+        MultiByteToWideChar(CP_UTF8, 0, port->valuestring, -1, portW, sizeof(portW) / sizeof(WCHAR));
+
+        WCHAR mapW[256] = { 0 };
+        MultiByteToWideChar(CP_UTF8, 0, map->valuestring, -1, mapW, sizeof(mapW) / sizeof(WCHAR));
+
+        // 设置状态文本
+        WCHAR statusW[20] = { 0 };
+        wcscpy_s(statusW, running->valueint ? L"运行中" : L"已停止");
+
+        // 设置操作文本
+        WCHAR actionW[20] = { 0 };
+        wcscpy_s(actionW,
+            running->valueint ? L"停止" : L"启动");
+
+        // 插入列表项
+        lvi.iItem = itemIndex;
+        lvi.pszText = statusW;
+        ListView_InsertItem(hList, &lvi);
+
+        // 设置其他列内容
+        ListView_SetItemText(hList, itemIndex, 1, nameW);       // 实例名称
+        ListView_SetItemText(hList, itemIndex, 2, portW);        // 端口
+        ListView_SetItemText(hList, itemIndex, 3, mapW);         // 地图
+        ListView_SetItemText(hList, itemIndex, 4, actionW);      // 操作
+
+        itemIndex++;
+    }
+
+    // 清理JSON资源
+    cJSON_Delete(root);
+    AddLog(hWnd, L"实例列表已更新");
 }
+
 
 // 添加日志到日志框
 void AddLog(HWND hWnd, LPCWSTR logText) {

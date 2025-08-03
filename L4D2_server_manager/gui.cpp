@@ -179,7 +179,7 @@ void CreateAllControls(HWND hWnd, HINSTANCE hInst) {
 
     // 4.3 日志显示框（多行编辑框）
     CreateWindowW(L"EDIT", L"",
-        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY,
+        WS_CHILD | WS_VISIBLE | WS_BORDER | WS_VSCROLL | ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY,
         30, 400, 940, 100, hWnd, (HMENU)IDC_LOG_VIEW, hInst, NULL);
 }
 

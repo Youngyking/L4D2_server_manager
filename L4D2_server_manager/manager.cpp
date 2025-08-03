@@ -205,7 +205,7 @@ DWORD WINAPI HandleDeployServer(LPVOID param) {
         return 0;
     }
 
-    AddLog(hWnd, L"开始部署/更新服务器...");
+    AddLog(hWnd, L"开始部署/更新服务器(已部署则检查更新，若可更新则需要耗费一定时间，取决于你服务器带宽)...");
     char output[4096] = { 0 }, err_msg[256] = { 0 };
     bool success = l4d2_ssh_exec_command(
         g_ssh_ctx,

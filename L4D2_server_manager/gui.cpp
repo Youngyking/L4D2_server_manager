@@ -218,7 +218,7 @@ void UpdateInstanceList(HWND hWnd, const char* instancesJson) {
     // 解析JSON根对象
     cJSON* root = cJSON_Parse(instancesJson);
     if (!root) {
-        AddLog(hWnd, L"解析实例解析实例列表JSON失败");
+        AddLog(hWnd, L"解析实例列表JSON失败");
         return;
     }
 
@@ -233,7 +233,7 @@ void UpdateInstanceList(HWND hWnd, const char* instancesJson) {
         const char* instanceName = currentInstance->string;
         if (!instanceName) continue;
 
-        // 转换实例名称为宽字符
+        // 转换实例名称为宽字符（UTF-8到Unicode）
         WCHAR nameW[256] = { 0 };
         MultiByteToWideChar(CP_UTF8, 0, instanceName, -1, nameW, sizeof(nameW) / sizeof(WCHAR));
 
@@ -248,21 +248,21 @@ void UpdateInstanceList(HWND hWnd, const char* instancesJson) {
             continue;
         }
 
-        // 转换端口和地图为宽字符
+        // 转换端口为宽字符（UTF-8到Unicode）
         WCHAR portW[16] = { 0 };
         MultiByteToWideChar(CP_UTF8, 0, port->valuestring, -1, portW, sizeof(portW) / sizeof(WCHAR));
 
+        // 转换地图为宽字符（UTF-8到Unicode）
         WCHAR mapW[256] = { 0 };
         MultiByteToWideChar(CP_UTF8, 0, map->valuestring, -1, mapW, sizeof(mapW) / sizeof(WCHAR));
 
-        // 设置状态文本
+        // 根据running的布尔值设置状态文本（true/false判断）
         WCHAR statusW[20] = { 0 };
-        wcscpy_s(statusW, running->valueint ? L"运行中" : L"已停止");
+        wcscpy_s(statusW, (running->type == cJSON_True) ? L"运行中" : L"已停止");
 
         // 设置操作文本
         WCHAR actionW[20] = { 0 };
-        wcscpy_s(actionW,
-            running->valueint ? L"停止" : L"启动");
+        wcscpy_s(actionW, (running->type == cJSON_True) ? L"停止" : L"启动");
 
         // 插入列表项
         lvi.iItem = itemIndex;

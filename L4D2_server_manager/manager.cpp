@@ -225,7 +225,7 @@ DWORD WINAPI HandleStopInstance(LPVOID param) {
         return 0;
     }
 
-    // 输出停止日志（包含实例名称和端口）
+    // 输出停止日志
     WCHAR logMsg[256];
     WCHAR instanceNameW[128];
 
@@ -233,7 +233,7 @@ DWORD WINAPI HandleStopInstance(LPVOID param) {
     swprintf_s(logMsg, L"正在停止实例: %ls（端口: %s）...", instanceNameW, port_w);
     AddLog(hWnd, logMsg);
 
-    // 构造SSH命令（使用实例名称停止，与启动逻辑保持一致）
+    // 构造SSH命令
     char cmd[256];
     snprintf(cmd, sizeof(cmd), "/home/L4D2_Manager/L4D2_Manager_API.sh stop_instance %s", instanceName.c_str());
 
@@ -253,15 +253,24 @@ DWORD WINAPI HandleStopInstance(LPVOID param) {
 
     AddLog(hWnd, output_w);
     if (success) {
+        Sleep(1000);
+        AddLog(hWnd, L"请耐心等待，关闭服务器大致需要半分钟");
+        Sleep(15000); //非常重要，实例的关闭需要时间，否则get_status返回的就还是在运行
         WCHAR successMsg[256];
-        swprintf_s(successMsg, L"实例 %S（端口: %s）停止成功", instanceName.c_str(), port_w);
+        WCHAR instanceNameW[128];
+
+        CharToWChar_ser(instanceName.c_str(), instanceNameW, sizeof(instanceNameW) / sizeof(WCHAR));
+        swprintf_s(successMsg, L"实例 %ls（端口: %s）停止成功", instanceNameW, port_w);
         AddLog(hWnd, successMsg);
-        HandleGetInstances(hWnd);  // 刷新实例列表（会自动更新映射表）
+        HandleGetInstances(hWnd);  // 刷新实例列表
     }
     else {
         WCHAR failMsg[256];
-        swprintf_s(failMsg, L"实例 %S（端口: %s）停止失败: %s",
-            instanceName.c_str(), port_w, err_msg_w);
+        WCHAR instanceNameW[128];
+
+        CharToWChar_ser(instanceName.c_str(), instanceNameW, sizeof(instanceNameW) / sizeof(WCHAR));
+        swprintf_s(failMsg, L"实例 %ls（端口: %s）停止失败: %s",
+            instanceNameW, port_w, err_msg_w);
         AddLog(hWnd, failMsg);
     }
 

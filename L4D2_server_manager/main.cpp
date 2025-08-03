@@ -152,12 +152,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         case IDC_DEPLOY_BTN:
             CreateThread(NULL, 0, HandleDeployServer, (LPVOID)hWnd, 0, NULL);
             break;
-            // 新增按钮事件
         case IDC_START_INSTANCE:
             CreateThread(NULL, 0, HandleStartInstance, (LPVOID)hWnd, 0, NULL);
             break;
         case IDC_STOP_INSTANCE:
             CreateThread(NULL, 0, HandleStopInstance, (LPVOID)hWnd, 0, NULL);
+            break;
+        case IDC_LOG_BTN:
+            ClearLog(hWnd);
             break;
         default:
             return DefWindowProc(hWnd, message, wParam, lParam);
@@ -219,9 +221,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     break;
     case WM_DESTROY:
         PostQuitMessage(0);
-        break;
-    case IDC_LOG_BTN: 
-        ClearLog(hWnd);
         break;
     default:
         return DefWindowProc(hWnd, message, wParam, lParam);

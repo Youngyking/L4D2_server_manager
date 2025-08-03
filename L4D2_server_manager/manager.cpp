@@ -15,6 +15,11 @@
 #include <fcntl.h>
 #include <string.h>
 #include <string>
+#include <cmath>
+#include <map>
+
+// 全局端口-实例名称映射表（动态更新）
+std::map<std::string, std::string> g_portToInstance;
 
 // 将一段数据视为UTF-16编码，将其转化为GBK编码并返回
 static char* WCharToChar(LPCWSTR wstr, char* buf, int buf_len) {
@@ -111,31 +116,55 @@ DWORD WINAPI HandleConnectRequest(LPVOID param) {
 DWORD WINAPI HandleStartInstance(LPVOID param) {
     HWND hWnd = (HWND)param;
     if (!g_ssh_ctx || !g_ssh_ctx->is_connected) {
-        // 提示信息使用CharToWChar转换（GBK->UTF-16）
         WCHAR logMsg[256];
         CharToWChar("未连接到服务器，无法启动实例", logMsg, sizeof(logMsg) / sizeof(WCHAR));
         AddLog(hWnd, logMsg);
         return 0;
     }
 
-    // 获取端口号
+    // 获取用户输入的端口号
     WCHAR port_w[16];
     GetWindowTextW(GetDlgItem(hWnd, IDC_PORT_EDIT), port_w, sizeof(port_w) / sizeof(WCHAR));
     char port[16];
-    WCharToChar(port_w, port, sizeof(port));  // 使用现有转换函数
+    WCharToChar(port_w, port, sizeof(port));
 
-    // 提示信息使用CharToWChar转换
-    WCHAR logPrefix1[64], logPrefix3[64];
-    CharToWChar("正在启动端口为 ", logPrefix1, sizeof(logPrefix1) / sizeof(WCHAR));
-    CharToWChar(" 的实例...", logPrefix3, sizeof(logPrefix3) / sizeof(WCHAR));
-    AddLog(hWnd, logPrefix1);
-    AddLog(hWnd, port_w);
-    AddLog(hWnd, logPrefix3);
+    // 从全局映射表中查找实例名称
+    std::string instanceName;
+    if (g_portToInstance.find(port) != g_portToInstance.end()) {
+        instanceName = g_portToInstance[port];
+    }
+    else {
+        WCHAR logMsg[256];
+        CharToWChar("未找到对应端口的实例配置", logMsg, sizeof(logMsg) / sizeof(WCHAR));
+        AddLog(hWnd, logMsg);
+        return 0;
+    }
 
-    // 构造SSH命令
+    // 根据端口查找实例名称
+    if (g_portToInstance.find(port) != g_portToInstance.end()) {
+        instanceName = g_portToInstance[port];
+    }
+    else {
+        // 未找到对应实例
+        WCHAR logMsg[256];
+        CharToWChar("未找到对应端口的实例配置", logMsg, sizeof(logMsg) / sizeof(WCHAR));
+        AddLog(hWnd, logMsg);
+        return 0;
+    }
+
+    // 输出启动日志（包含实例名称和端口）
+    WCHAR logMsg[256];
+    WCHAR instanceNameW[128];
+
+    CharToWChar_ser(instanceName.c_str(), instanceNameW, sizeof(instanceNameW) / sizeof(WCHAR));
+    swprintf_s(logMsg, L"正在启动实例: %ls（端口: %s）...", instanceNameW, port_w);
+    AddLog(hWnd, logMsg);
+
+    // 构造SSH命令（使用start_instance动作和实例名称，修正原命令错误）
     char cmd[256];
-    snprintf(cmd, sizeof(cmd), "/home/L4D2_Manager/L4D2_Manager_API.sh start %s", port);
+    snprintf(cmd, sizeof(cmd), "/home/L4D2_Manager/L4D2_Manager_API.sh start_instance %s", instanceName.c_str());
 
+    // 执行命令并处理结果
     char output[4096] = { 0 }, err_msg[256] = { 0 };
     bool success = l4d2_ssh_exec_command(
         g_ssh_ctx,
@@ -144,21 +173,19 @@ DWORD WINAPI HandleStartInstance(LPVOID param) {
         err_msg, sizeof(err_msg)
     );
 
-    // 服务器脚本输出使用CharToWChar_ser转换（UTF-8->UTF-16）
+    // 转换输出日志并显示
     WCHAR output_w[4096], err_msg_w[256];
     CharToWChar_ser(output, output_w, sizeof(output_w) / sizeof(WCHAR));
     CharToWChar_ser(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
 
     AddLog(hWnd, output_w);
     if (success) {
-        // 提示信息使用CharToWChar转换
         WCHAR successMsg[64];
         CharToWChar("实例启动成功", successMsg, sizeof(successMsg) / sizeof(WCHAR));
         AddLog(hWnd, successMsg);
         HandleGetInstances(hWnd);  // 刷新实例列表
     }
     else {
-        // 提示信息使用CharToWChar转换
         WCHAR failPrefix[64];
         CharToWChar("启动失败: ", failPrefix, sizeof(failPrefix) / sizeof(WCHAR));
         AddLog(hWnd, failPrefix);
@@ -168,11 +195,10 @@ DWORD WINAPI HandleStartInstance(LPVOID param) {
     return 0;
 }
 
-// 停止实例处理函数
+// 停止实例处理函数（使用全局映射表获取实例名称）
 DWORD WINAPI HandleStopInstance(LPVOID param) {
     HWND hWnd = (HWND)param;
     if (!g_ssh_ctx || !g_ssh_ctx->is_connected) {
-        // 提示信息使用CharToWChar转换（GBK->UTF-16）
         WCHAR logMsg[256];
         CharToWChar("未连接到服务器，无法停止实例", logMsg, sizeof(logMsg) / sizeof(WCHAR));
         AddLog(hWnd, logMsg);
@@ -183,20 +209,35 @@ DWORD WINAPI HandleStopInstance(LPVOID param) {
     WCHAR port_w[16];
     GetWindowTextW(GetDlgItem(hWnd, IDC_PORT_EDIT), port_w, sizeof(port_w) / sizeof(WCHAR));
     char port[16];
-    WCharToChar(port_w, port, sizeof(port));  // 使用现有转换函数
+    WCharToChar(port_w, port, sizeof(port));
 
-    // 提示信息使用CharToWChar转换
-    WCHAR logPrefix1[64], logPrefix3[64];
-    CharToWChar("正在停止端口为 ", logPrefix1, sizeof(logPrefix1) / sizeof(WCHAR));
-    CharToWChar(" 的实例...", logPrefix3, sizeof(logPrefix3) / sizeof(WCHAR));
-    AddLog(hWnd, logPrefix1);
-    AddLog(hWnd, port_w);
-    AddLog(hWnd, logPrefix3);
+    // 从全局映射表查找实例名称
+    std::string instanceName;
+    auto it = g_portToInstance.find(port);
+    if (it != g_portToInstance.end()) {
+        instanceName = it->second;
+    }
+    else {
+        WCHAR logMsg[256];
 
-    // 构造SSH命令
+        swprintf_s(logMsg, L"未找到端口 %s 对应的实例配置", port_w);
+        AddLog(hWnd, logMsg);
+        return 0;
+    }
+
+    // 输出停止日志（包含实例名称和端口）
+    WCHAR logMsg[256];
+    WCHAR instanceNameW[128];
+
+    CharToWChar_ser(instanceName.c_str(), instanceNameW, sizeof(instanceNameW) / sizeof(WCHAR));
+    swprintf_s(logMsg, L"正在停止实例: %ls（端口: %s）...", instanceNameW, port_w);
+    AddLog(hWnd, logMsg);
+
+    // 构造SSH命令（使用实例名称停止，与启动逻辑保持一致）
     char cmd[256];
-    snprintf(cmd, sizeof(cmd), "/home/L4D2_Manager/L4D2_Manager_API.sh stop %s", port);
+    snprintf(cmd, sizeof(cmd), "/home/L4D2_Manager/L4D2_Manager_API.sh stop_instance %s", instanceName.c_str());
 
+    // 执行命令并处理结果
     char output[4096] = { 0 }, err_msg[256] = { 0 };
     bool success = l4d2_ssh_exec_command(
         g_ssh_ctx,
@@ -205,25 +246,23 @@ DWORD WINAPI HandleStopInstance(LPVOID param) {
         err_msg, sizeof(err_msg)
     );
 
-    // 服务器脚本输出使用CharToWChar_ser转换（UTF-8->UTF-16）
+    // 转换输出日志并显示
     WCHAR output_w[4096], err_msg_w[256];
     CharToWChar_ser(output, output_w, sizeof(output_w) / sizeof(WCHAR));
     CharToWChar_ser(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
 
     AddLog(hWnd, output_w);
     if (success) {
-        // 提示信息使用CharToWChar转换
-        WCHAR successMsg[64];
-        CharToWChar("实例停止成功", successMsg, sizeof(successMsg) / sizeof(WCHAR));
+        WCHAR successMsg[256];
+        swprintf_s(successMsg, L"实例 %S（端口: %s）停止成功", instanceName.c_str(), port_w);
         AddLog(hWnd, successMsg);
-        HandleGetInstances(hWnd);  // 刷新实例列表
+        HandleGetInstances(hWnd);  // 刷新实例列表（会自动更新映射表）
     }
     else {
-        // 提示信息使用CharToWChar转换
-        WCHAR failPrefix[64];
-        CharToWChar("停止失败: ", failPrefix, sizeof(failPrefix) / sizeof(WCHAR));
-        AddLog(hWnd, failPrefix);
-        AddLog(hWnd, err_msg_w);
+        WCHAR failMsg[256];
+        swprintf_s(failMsg, L"实例 %S（端口: %s）停止失败: %s",
+            instanceName.c_str(), port_w, err_msg_w);
+        AddLog(hWnd, failMsg);
     }
 
     return 0;
@@ -325,7 +364,40 @@ DWORD WINAPI HandleGetInstances(LPVOID param) {
     );
 
     if (success) {
+        // 解析JSON并更新全局映射表
+        cJSON* root = cJSON_Parse(output);
+        if (root) {
+            // 清空旧映射（避免残留无效数据）
+            g_portToInstance.clear();
+
+            // 遍历JSON中所有实例（键为实例名称，值为实例详情）
+            cJSON* instance = NULL;
+            cJSON_ArrayForEach(instance, root) {
+                if (instance->type == cJSON_Object) {
+                    // 获取实例名称（JSON键）
+                    std::string instanceName = instance->string;
+                    // 获取端口号（实例详情中的port字段）
+                    cJSON* portItem = cJSON_GetObjectItem(instance, "port");
+                    if (portItem && portItem->type == cJSON_String) {
+                        std::string port = portItem->valuestring;
+                        // 存入映射表（端口 -> 实例名称）
+                        g_portToInstance[port] = instanceName;
+                    }
+                }
+            }
+            cJSON_Delete(root);
+        }
+        else {
+            AddLog(hWnd, L"解析实例列表JSON失败");
+        }
+
+        // 刷新UI列表
         UpdateInstanceList(hWnd, output);
+    }
+    else {
+        WCHAR err_msg_w[256];
+        CharToWChar_ser(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
+        AddLog(hWnd, err_msg_w);
     }
 
     return 0;

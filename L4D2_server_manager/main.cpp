@@ -160,6 +160,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         case IDC_LOG_BTN:
             ClearLog(hWnd);
             break;
+        case IDC_UPLOAD_SM_BTN:
+            CreateThread(NULL, 0, HandleUploadSourceMod, (LPVOID)hWnd, 0, NULL);
+            break;
+        case IDC_UPLOAD_MM_BTN:
+            CreateThread(NULL, 0, HandleUploadMetaMod, (LPVOID)hWnd, 0, NULL);
+            break;
         default:
             return DefWindowProc(hWnd, message, wParam, lParam);
         }

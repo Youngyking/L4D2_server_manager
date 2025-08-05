@@ -4,10 +4,7 @@
 
 #define WIN32_LEAN_AND_MEAN  // 禁用 Windows 旧版头文件中的冗余定义
 #define _CRT_SECURE_NO_WARNINGS //允许使用fopen
-#include <winsock2.h>
-#include <ws2tcpip.h> 
-#pragma comment(lib, "ws2_32.lib")  // 链接 Winsock 2.0 库
-#include "ssh.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,6 +16,7 @@
 #include <sys/stat.h>
 #include <libssh/libssh.h>
 #include <libssh/sftp.h>
+#include "ssh.h"
 
 //doc_to_unix
 static bool convert_crlf_to_lf(const char* input_path, const char* temp_path) {
@@ -87,7 +85,7 @@ bool l4d2_ssh_connect(L4D2_SSH_Context* ctx, const char* ip, const char* user, c
 }
 
 // 检查远程目录是否存在
-static bool check_remote_dir(ssh_session session, const char* dir, char* err_msg, int err_len) {
+bool check_remote_dir(ssh_session session, const char* dir, char* err_msg, int err_len) {
     char cmd[256];
     snprintf(cmd, sizeof(cmd), "test -d %s", dir);
     ssh_channel channel = ssh_channel_new(session);
@@ -119,7 +117,7 @@ static bool check_remote_dir(ssh_session session, const char* dir, char* err_msg
 }
 
 // 创建远程目录
-static bool create_remote_dir(ssh_session session, const char* dir, char* err_msg, int err_len) {
+bool create_remote_dir(ssh_session session, const char* dir, char* err_msg, int err_len) {
     char cmd[256];
     snprintf(cmd, sizeof(cmd), "mkdir -p %s", dir);
     ssh_channel channel = ssh_channel_new(session);
@@ -140,7 +138,7 @@ static bool create_remote_dir(ssh_session session, const char* dir, char* err_ms
 }
 
 // 上传文件到远程服务器（带换行符转换功能）
-static bool upload_file(ssh_session session, const char* local_path, const char* remote_path, char* err_msg, int err_len) {
+bool upload_file(ssh_session session, const char* local_path, const char* remote_path, char* err_msg, int err_len) {
     // 创建临时文件路径
     char temp_path[256];
     snprintf(temp_path, sizeof(temp_path), "%s.tmp", local_path);

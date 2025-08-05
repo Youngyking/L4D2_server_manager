@@ -2,10 +2,15 @@
 基于ssh.cpp提供的ssh与sftp接口封装窗口控件的功能
 */
 
-#define WIN32_LEAN_AND_MEAN
+
+#define WIN32_LEAN_AND_MEAN  // 禁用 Windows 旧版头文件中的冗余定义
+#define _CRT_SECURE_NO_WARNINGS //允许使用fopen
+
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <commdlg.h>
 #pragma comment(lib, "ws2_32.lib")
+#pragma comment(lib, "comdlg32.lib")
 #include "manager.h"
 #include "cJSON.h"
 #include "gui.h"
@@ -400,6 +405,156 @@ DWORD WINAPI HandleGetInstances(LPVOID param) {
         WCHAR err_msg_w[256];
         CharToWChar_ser(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
         AddLog(hWnd, err_msg_w);
+    }
+
+    return 0;
+}
+
+// 上传SourceMod安装包
+DWORD WINAPI HandleUploadSourceMod(LPVOID param) {
+    HWND hWnd = (HWND)param;
+    if (!g_ssh_ctx || !g_ssh_ctx->is_connected) {
+        AddLog(hWnd, L"未连接到服务器，无法上传SourceMod");
+        return 0;
+    }
+
+    // 远程目录
+    const char* remote_dir = "/home/L4D2_Manager/SourceMod_Installers";
+    char err_msg[256] = { 0 };
+
+    // 检查并创建远程目录
+    if (!check_remote_dir(g_ssh_ctx->session, remote_dir, err_msg, sizeof(err_msg))) {
+        AddLog(hWnd, L"远程目录不存在，尝试创建...");
+        if (!create_remote_dir(g_ssh_ctx->session, remote_dir, err_msg, sizeof(err_msg))) {
+            WCHAR err_w[256];
+            CharToWChar(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
+            AddLog(hWnd, err_w);
+            return 0;
+        }
+    }
+
+    // 打开文件选择对话框
+    WCHAR filter[] = L"SourceMod安装包 (*.tar.gz)|*.tar.gz|所有文件 (*.*)|*.*|";
+    WCHAR fileName[256] = { 0 };
+    OPENFILENAMEW ofn = { 0 };
+    ofn.lStructSize = sizeof(OPENFILENAMEW);
+    ofn.hwndOwner = hWnd;
+    ofn.lpstrFilter = filter;
+    ofn.lpstrFile = fileName;
+    ofn.nMaxFile = sizeof(fileName) / sizeof(WCHAR);
+    ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+
+    // 设置默认路径为当前目录的resource文件夹
+    WCHAR currentDir[256];
+    GetCurrentDirectoryW(sizeof(currentDir) / sizeof(WCHAR), currentDir);
+    WCHAR defaultPath[256];
+    swprintf_s(defaultPath, L"%s\\resource", currentDir);
+    ofn.lpstrInitialDir = defaultPath;
+
+    if (!GetOpenFileNameW(&ofn)) {
+        AddLog(hWnd, L"取消选择文件");
+        return 0;
+    }
+
+    // 转换路径为多字节
+    char local_path[256];
+    WCharToChar(fileName, local_path, sizeof(local_path));
+
+    // 获取文件名
+    char* file_name = strrchr(local_path, '\\');
+    if (!file_name) file_name = local_path;
+    else file_name++;
+
+    // 构建远程路径
+    char remote_path[256];
+    snprintf(remote_path, sizeof(remote_path), "%s/%s", remote_dir, file_name);
+
+    // 上传文件
+    AddLog(hWnd, L"开始上传SourceMod安装包...");
+    if (upload_file(g_ssh_ctx->session, local_path, remote_path, err_msg, sizeof(err_msg))) {
+        WCHAR success_msg[256];
+        CharToWChar(err_msg, success_msg, sizeof(success_msg) / sizeof(WCHAR));
+        AddLog(hWnd, success_msg);
+    }
+    else {
+        WCHAR err_w[256];
+        CharToWChar(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
+        AddLog(hWnd, err_w);
+    }
+
+    return 0;
+}
+
+// 上传MetaMod安装包
+DWORD WINAPI HandleUploadMetaMod(LPVOID param) {
+    HWND hWnd = (HWND)param;
+    if (!g_ssh_ctx || !g_ssh_ctx->is_connected) {
+        AddLog(hWnd, L"未连接到服务器，无法上传MetaMod");
+        return 0;
+    }
+
+    // 远程目录
+    const char* remote_dir = "/home/L4D2_Manager/SourceMod_Installers";
+    char err_msg[256] = { 0 };
+
+    // 检查并创建远程目录
+    if (!check_remote_dir(g_ssh_ctx->session, remote_dir, err_msg, sizeof(err_msg))) {
+        AddLog(hWnd, L"远程目录不存在，尝试创建...");
+        if (!create_remote_dir(g_ssh_ctx->session, remote_dir, err_msg, sizeof(err_msg))) {
+            WCHAR err_w[256];
+            CharToWChar(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
+            AddLog(hWnd, err_w);
+            return 0;
+        }
+    }
+
+    // 打开文件选择对话框
+    WCHAR filter[] = L"MetaMod安装包 (*.tar.gz)|*.tar.gz|所有文件 (*.*)|*.*|";
+    WCHAR fileName[256] = { 0 };
+    OPENFILENAMEW ofn = { 0 };
+    ofn.lStructSize = sizeof(OPENFILENAMEW);
+    ofn.hwndOwner = hWnd;
+    ofn.lpstrFilter = filter;
+    ofn.lpstrFile = fileName;
+    ofn.nMaxFile = sizeof(fileName) / sizeof(WCHAR);
+    ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+
+    // 设置默认路径为当前目录的resource文件夹
+    WCHAR currentDir[256];
+    GetCurrentDirectoryW(sizeof(currentDir) / sizeof(WCHAR), currentDir);
+    WCHAR defaultPath[256];
+    swprintf_s(defaultPath, L"%s\\resource", currentDir);
+    ofn.lpstrInitialDir = defaultPath;
+
+    if (!GetOpenFileNameW(&ofn)) {
+        AddLog(hWnd, L"取消选择文件");
+        return 0;
+    }
+
+    // 转换路径为多字节
+    char local_path[256];
+    WCharToChar(fileName, local_path, sizeof(local_path));
+
+    // 获取文件名
+    char* file_name = strrchr(local_path, '\\');
+    if (!file_name) file_name = local_path;
+    else file_name++;
+
+    // 构建远程路径
+    char remote_path[256];
+    snprintf(remote_path, sizeof(remote_path), "%s/%s", remote_dir, file_name);
+
+    // 上传文件
+    AddLog(hWnd, L"开始上传MetaMod安装包...");
+    if (upload_file(g_ssh_ctx->session, local_path, remote_path, err_msg, sizeof(err_msg))) {
+        WCHAR success_msg[256];
+        CharToWChar(err_msg, success_msg, sizeof(success_msg) / sizeof(WCHAR));
+        AddLog(hWnd, success_msg);
+    }
+    else {
+        WCHAR err_w[256];
+        CharToWChar(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
+        AddLog(hWnd, err_w);
     }
 
     return 0;

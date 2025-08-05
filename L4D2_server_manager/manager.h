@@ -12,8 +12,8 @@ DWORD WINAPI HandleConnectRequest(LPVOID param);
 DWORD WINAPI HandleDeployServer(LPVOID param);
 DWORD WINAPI HandleGetStatus(LPVOID param);
 DWORD WINAPI HandleGetInstances(LPVOID param);
-
-// 新增函数声明
+DWORD WINAPI HandleUploadSourceMod(LPVOID param);
+DWORD WINAPI HandleUploadMetaMod(LPVOID param);
 DWORD WINAPI HandleStartInstance(LPVOID param);
 DWORD WINAPI HandleStopInstance(LPVOID param);
 

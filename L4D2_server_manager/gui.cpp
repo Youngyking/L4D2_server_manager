@@ -119,12 +119,17 @@ void CreateAllControls(HWND hWnd, HINSTANCE hInst) {
     // 上传SourceMod按钮
     CreateWindowW(L"BUTTON", L"上传SourceMod",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        30, 380, 440, 30, hWnd, (HMENU)IDC_UPLOAD_SM_BTN, hInst, NULL);
+        30, 370, 440, 30, hWnd, (HMENU)IDC_UPLOAD_SM_BTN, hInst, NULL);
 
     // 上传MetaMod按钮
     CreateWindowW(L"BUTTON", L"上传MetaMod",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        30, 440, 440, 30, hWnd, (HMENU)IDC_UPLOAD_MM_BTN, hInst, NULL);
+        30, 420, 440, 30, hWnd, (HMENU)IDC_UPLOAD_MM_BTN, hInst, NULL);
+
+    // 安装SourceMod与MetaMod按钮
+    CreateWindowW(L"BUTTON", L"安装SourceMod与MetaMod",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        30, 470, 440, 30, hWnd, (HMENU)IDC_UPLOAD_SMM_BTN, hInst, NULL);
 
     // 3. 服务器实例面板
     CreateWindowW(L"BUTTON", L"服务器实例",

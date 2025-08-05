@@ -27,6 +27,7 @@
 #define IDC_MM_STATUS        1022  // MetaMod状态标签
 #define IDC_UPLOAD_SM_BTN    1023  // 上传SourceMod按钮
 #define IDC_UPLOAD_MM_BTN    1024  // 上传MetaMod按钮
+#define IDC_UPLOAD_SMM_BTN   1025  // 安装SourceMod与MetaMod按钮
 
 // 菜单/对话框/图标/字符串ID（保持不变）
 #define IDM_ABOUT            40001 // 关于菜单，用于打开关于对话框

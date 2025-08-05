@@ -14,9 +14,9 @@ void CreateAllControls(HWND hWnd, HINSTANCE hInst);
 // 更新连接状态显示
 void UpdateConnectionStatus(HWND hWnd, LPCWSTR status, BOOL isConnected);
 
-// 更新系统状态卡片（服务器文件/SourceMod状态）
+// 更新系统状态面板（服务器文件/SourceMod/MetaMod状态等）
 void UpdateSystemStatus(HWND hWnd, LPCWSTR serverStatus, LPCWSTR smStatus,
-    LPCWSTR instanceCount, LPCWSTR pluginCount);  // 新增参数
+    LPCWSTR mmStatus); 
 
 // 更新实例列表
 void UpdateInstanceList(HWND hWnd, const char* instancesJson);

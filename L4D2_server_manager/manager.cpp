@@ -332,17 +332,10 @@ DWORD WINAPI HandleGetStatus(LPVOID param) {
             cJSON* smInstalled = cJSON_GetObjectItem(root, "smInstalled");
             LPCWSTR smStatus = (smInstalled && smInstalled->type == cJSON_True) ? L"已安装" : L"未安装";
 
-            cJSON* instanceCount = cJSON_GetObjectItem(root, "instanceCount");
-            int instCount = instanceCount ? instanceCount->valueint : 0;
-            WCHAR instCountStr[32];
-            swprintf_s(instCountStr, L"%d", instCount);
+            cJSON* mmInstalled = cJSON_GetObjectItem(root, "mmInstalled");
+            LPCWSTR mmStatus = (mmInstalled && mmInstalled->type == cJSON_True) ? L"已安装" : L"未安装";
 
-            cJSON* pluginCount = cJSON_GetObjectItem(root, "pluginCount");
-            int plugCount = pluginCount ? pluginCount->valueint : 0;
-            WCHAR plugCountStr[32];
-            swprintf_s(plugCountStr, L"%d", plugCount);
-
-            UpdateSystemStatus(hWnd, serverStatus, smStatus, instCountStr, plugCountStr);
+            UpdateSystemStatus(hWnd, serverStatus, smStatus, mmStatus);
 
             cJSON_Delete(root);
         }

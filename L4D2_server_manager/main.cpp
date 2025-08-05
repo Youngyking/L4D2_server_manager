@@ -110,7 +110,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
     // 创建主窗口（固定初始大小为1024x600）
     HWND hWnd = CreateWindowW(szWindowClass, szTitle,
-        WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME & ~WS_MAXIMIZEBOX, // 禁止调整大小和最大化
+        WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME & ~WS_MAXIMIZEBOX,
         CW_USEDEFAULT, 0, 1024, 600, nullptr, nullptr, hInstance, nullptr);
 
     if (!hWnd)
@@ -145,7 +145,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         int wmId = LOWORD(wParam);
         switch (wmId)
         {
-            // 原有case保持不变...
         case IDC_CONNECT_BTN:
             CreateThread(NULL, 0, HandleConnectRequest, (LPVOID)hWnd, 0, NULL);
             break;

@@ -344,9 +344,11 @@ case "$ACTION" in
     get_status)
         server_deployed="false"
         sm_installed="false"
+	mm_installed="false"
         if [ -f "$ServerRoot/srcds_run" ]; then server_deployed="true"; fi
-        if [ -f "$L4d2Dir/addons/metamod.vdf" ]; then sm_installed="true"; fi
-        echo "{\"serverDeployed\": $server_deployed, \"smInstalled\": $sm_installed, \"success\": true}"
+        if [ -f "$L4d2Dir/addons/metamod.vdf" ] ; then mm_installed="true"; fi
+	if  [ -f "$L4d2Dir/addons/sourcemod/bin/sourcemod_mm_i486.so" ]; then sm_installed="true"; fi
+        echo "{\"serverDeployed\": $server_deployed, \"smInstalled\": $sm_installed, \"mmInstalled\": $mm_installed}"
         ;;
 
     get_instances)

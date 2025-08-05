@@ -1,10 +1,10 @@
 /*
-    为主程序文件L4D2_server_manager.cpp封装GUI窗口的具体创建过程，
-    并为manager.cpp提供日志记录接口
+    为主程序文件L4D2_server_manager.cpp提供GUI界面的实现，负责创建和管理界面元素，
+    并为manager.cpp提供界面更新接口
 */
 
 
-#define WIN32_LEAN_AND_MEAN  // 禁用 Windows 旧版头文件中的冗余定义
+#define WIN32_LEAN_AND_MEAN  // 减少 Windows 头文件中的冗余内容
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #pragma comment(lib, "ws2_32.lib")  // 链接 Winsock 2.0 库
@@ -16,7 +16,7 @@
 #include "gui.h"
 #include "ssh.h"
 
-// 初始化公共控件（ListView等需要）
+// 初始化通用控件（ListView需要）
 void InitCommonControlsExWrapper() {
     INITCOMMONCONTROLSEX icex;
     icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
@@ -24,14 +24,14 @@ void InitCommonControlsExWrapper() {
     InitCommonControlsEx(&icex);
 }
 
-// 创建所有窗口控件
+// 创建所有界面控件
 void CreateAllControls(HWND hWnd, HINSTANCE hInst) {
-    // 1. SSH连接栏
+    // 1. SSH连接区
     CreateWindowW(L"BUTTON", L"SSH连接设置",
         WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
         10, 10, 980, 80, hWnd, (HMENU)IDC_SSH_GROUP, hInst, NULL);
 
-    // 1.1 IP输入框
+    // 1.1 IP地址输入
     CreateWindowW(L"STATIC", L"服务器IP:",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
         30, 30, 80, 20, hWnd, NULL, hInst, NULL);
@@ -39,7 +39,7 @@ void CreateAllControls(HWND hWnd, HINSTANCE hInst) {
         WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
         120, 30, 200, 25, hWnd, (HMENU)IDC_IP_EDIT, hInst, NULL);
 
-    // 1.2 用户名输入框
+    // 1.2 用户名输入
     CreateWindowW(L"STATIC", L"用户名:",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
         350, 30, 80, 20, hWnd, NULL, hInst, NULL);
@@ -47,7 +47,7 @@ void CreateAllControls(HWND hWnd, HINSTANCE hInst) {
         WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
         440, 30, 150, 25, hWnd, (HMENU)IDC_USER_EDIT, hInst, NULL);
 
-    // 1.3 密码输入框
+    // 1.3 密码输入
     CreateWindowW(L"STATIC", L"密码:",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
         620, 30, 80, 20, hWnd, NULL, hInst, NULL);
@@ -65,50 +65,68 @@ void CreateAllControls(HWND hWnd, HINSTANCE hInst) {
         WS_CHILD | WS_VISIBLE | SS_LEFT,
         30, 60, 200, 20, hWnd, (HMENU)IDC_CONN_STATUS, hInst, NULL);
 
-    // 2. 系统状态卡片
+    // 2. 系统状态面板（调整高度以完全包含所有按钮）
     CreateWindowW(L"BUTTON", L"系统状态 & 核心操作",
         WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
-        10, 100, 480, 220, hWnd, (HMENU)IDC_STATUS_GROUP, hInst, NULL);
+        10, 100, 480, 420, hWnd, (HMENU)IDC_STATUS_GROUP, hInst, NULL);
 
-    // 2.1 状态指标（4个网格）
+    // 2.1 状态显示（5条信息）
     // 服务器文件状态
     CreateWindowW(L"STATIC", L"服务器文件:",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
-        30, 130, 100, 20, hWnd, NULL, hInst, NULL);
+        30, 130, 100, 30, hWnd, NULL, hInst, NULL);
     CreateWindowW(L"STATIC", L"未部署",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
-        140, 130, 100, 20, hWnd, (HMENU)IDC_SERVER_STATUS, hInst, NULL);
+        140, 130, 100, 30, hWnd, (HMENU)IDC_SERVER_STATUS, hInst, NULL);
 
     // SourceMod状态
     CreateWindowW(L"STATIC", L"SourceMod:",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
-        30, 170, 100, 20, hWnd, NULL, hInst, NULL);
+        30, 200, 100, 30, hWnd, NULL, hInst, NULL);
     CreateWindowW(L"STATIC", L"未安装",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
-        140, 170, 100, 20, hWnd, (HMENU)IDC_SM_STATUS, hInst, NULL);
+        140, 200, 100, 30, hWnd, (HMENU)IDC_SM_STATUS, hInst, NULL);
 
-    // 运行中实例数
-    CreateWindowW(L"STATIC", L"运行中实例:",
+    // MetaMod状态
+    CreateWindowW(L"STATIC", L"MetaMod:",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
-        30, 210, 100, 20, hWnd, NULL, hInst, NULL);
-    CreateWindowW(L"STATIC", L"0",
+        30, 270, 100, 30, hWnd, NULL, hInst, NULL);
+    CreateWindowW(L"STATIC", L"未安装",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
-        140, 210, 100, 20, hWnd, (HMENU)IDC_INSTANCE_COUNT, hInst, NULL);
+        140, 270, 100, 30, hWnd, (HMENU)IDC_MM_STATUS, hInst, NULL);
 
-    // 已安装插件数
-    CreateWindowW(L"STATIC", L"已安装插件:",
-        WS_CHILD | WS_VISIBLE | SS_LEFT,
-        30, 250, 100, 20, hWnd, NULL, hInst, NULL);
-    CreateWindowW(L"STATIC", L"0",
-        WS_CHILD | WS_VISIBLE | SS_LEFT,
-        140, 250, 100, 20, hWnd, (HMENU)IDC_PLUGIN_COUNT, hInst, NULL);
+    //// 服务器实例数
+    //CreateWindowW(L"STATIC", L"服务器实例:",
+    //    WS_CHILD | WS_VISIBLE | SS_LEFT,
+    //    30, 250, 100, 20, hWnd, NULL, hInst, NULL);
+    //CreateWindowW(L"STATIC", L"0",
+    //    WS_CHILD | WS_VISIBLE | SS_LEFT,
+    //    140, 250, 100, 20, hWnd, (HMENU)IDC_INSTANCE_COUNT, hInst, NULL);
 
-    // 2.2 部署按钮
+    //// 已安装插件数
+    //CreateWindowW(L"STATIC", L"已安装插件:",
+    //    WS_CHILD | WS_VISIBLE | SS_LEFT,
+    //    30, 290, 100, 20, hWnd, NULL, hInst, NULL);
+    //CreateWindowW(L"STATIC", L"0",
+    //    WS_CHILD | WS_VISIBLE | SS_LEFT,
+    //    140, 290, 100, 20, hWnd, (HMENU)IDC_PLUGIN_COUNT, hInst, NULL);
+
+    // 2.2 操作按钮
     CreateWindowW(L"BUTTON", L"部署/更新服务器",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        30, 280, 440, 30, hWnd, (HMENU)IDC_DEPLOY_BTN, hInst, NULL);
+        30, 320, 440, 30, hWnd, (HMENU)IDC_DEPLOY_BTN, hInst, NULL);
 
-    // 3. 服务器实例卡片
+    // 上传SourceMod按钮
+    CreateWindowW(L"BUTTON", L"上传SourceMod",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        30, 380, 440, 30, hWnd, (HMENU)IDC_UPLOAD_SM_BTN, hInst, NULL);
+
+    // 上传MetaMod按钮
+    CreateWindowW(L"BUTTON", L"上传MetaMod",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        30, 440, 440, 30, hWnd, (HMENU)IDC_UPLOAD_MM_BTN, hInst, NULL);
+
+    // 3. 服务器实例面板
     CreateWindowW(L"BUTTON", L"服务器实例",
         WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
         500, 100, 490, 220, hWnd, (HMENU)IDC_INSTANCE_GROUP, hInst, NULL);
@@ -117,12 +135,12 @@ void CreateAllControls(HWND hWnd, HINSTANCE hInst) {
     HWND hInstanceList = CreateWindowW(WC_LISTVIEWW, L"",
         WS_CHILD | WS_VISIBLE | WS_BORDER | LVS_REPORT | LVS_SHOWSELALWAYS,
         520, 130, 450, 160, hWnd, (HMENU)IDC_INSTANCE_LIST, hInst, NULL);
-    // 添加列表列
+    // 设置列表列
     LVCOLUMNW lvc = { 0 };
     lvc.mask = LVCF_TEXT | LVCF_WIDTH;
     // 第0列
     lvc.cx = 60;
-    lvc.pszText = const_cast<LPWSTR>(L"状态");  // 强制转换常量为可修改指针
+    lvc.pszText = const_cast<LPWSTR>(L"状态");
     ListView_InsertColumn(hInstanceList, 0, &lvc);
 
     // 第1列
@@ -145,7 +163,7 @@ void CreateAllControls(HWND hWnd, HINSTANCE hInst) {
     lvc.pszText = const_cast<LPWSTR>(L"操作");
     ListView_InsertColumn(hInstanceList, 4, &lvc);
 
-    // 3.2 端口输入相关控件
+    // 3.2 端口输入和操作按钮
     CreateWindowW(L"STATIC", L"端口号:",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
         520, 300, 60, 20, hWnd, NULL, hInst, NULL);
@@ -162,47 +180,47 @@ void CreateAllControls(HWND hWnd, HINSTANCE hInst) {
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
         810, 300, 100, 25, hWnd, (HMENU)IDC_STOP_INSTANCE, hInst, NULL);
 
-    // 4. 操作入口卡片
+    // 4. 操作与日志面板（放在服务器实例面板下方，与左侧系统状态面板高度匹配）
     CreateWindowW(L"BUTTON", L"插件管理 & 日志",
         WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
-        10, 330, 980, 200, hWnd, (HMENU)IDC_ACTION_GROUP, hInst, NULL);
+        500, 330, 490, 210, hWnd, (HMENU)IDC_ACTION_GROUP, hInst, NULL);
 
     // 4.1 插件管理按钮
-    CreateWindowW(L"BUTTON", L"前往插件管理",
+    CreateWindowW(L"BUTTON", L"插件管理",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        30, 360, 200, 30, hWnd, (HMENU)IDC_PLUGIN_BTN, hInst, NULL);
+        520, 360, 200, 30, hWnd, (HMENU)IDC_PLUGIN_BTN, hInst, NULL);
 
     // 4.2 日志查看按钮
-    CreateWindowW(L"BUTTON", L"清空日志",
+    CreateWindowW(L"BUTTON", L"清除日志",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        250, 360, 200, 30, hWnd, (HMENU)IDC_LOG_BTN, hInst, NULL);
+        740, 360, 200, 30, hWnd, (HMENU)IDC_LOG_BTN, hInst, NULL);
 
     // 4.3 日志显示框（多行编辑框）
     CreateWindowW(L"EDIT", L"",
         WS_CHILD | WS_VISIBLE | WS_BORDER | WS_VSCROLL | ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY,
-        30, 400, 940, 100, hWnd, (HMENU)IDC_LOG_VIEW, hInst, NULL);
+        520, 400, 450, 120, hWnd, (HMENU)IDC_LOG_VIEW, hInst, NULL);
 }
 
 // 更新连接状态
 void UpdateConnectionStatus(HWND hWnd, LPCWSTR status, BOOL isConnected) {
     HWND hStatus = GetDlgItem(hWnd, IDC_CONN_STATUS);
     SetWindowTextW(hStatus, status);
-    // 连接成功时启用其他按钮
+    // 连接成功时启用操作按钮
     EnableWindow(GetDlgItem(hWnd, IDC_DEPLOY_BTN), isConnected);
     EnableWindow(GetDlgItem(hWnd, IDC_PLUGIN_BTN), isConnected);
+    EnableWindow(GetDlgItem(hWnd, IDC_UPLOAD_SM_BTN), isConnected);
+    EnableWindow(GetDlgItem(hWnd, IDC_UPLOAD_MM_BTN), isConnected);
 }
 
-// 更新系统状态卡片
+// 更新系统状态面板
 void UpdateSystemStatus(HWND hWnd, LPCWSTR serverStatus, LPCWSTR smStatus,
-    LPCWSTR instanceCount, LPCWSTR pluginCount) {
+    LPCWSTR mmStatus) {
     // 更新服务器文件状态
     SetWindowTextW(GetDlgItem(hWnd, IDC_SERVER_STATUS), serverStatus);
     // 更新SourceMod状态
     SetWindowTextW(GetDlgItem(hWnd, IDC_SM_STATUS), smStatus);
-    // 新增：更新实例数量
-    SetWindowTextW(GetDlgItem(hWnd, IDC_INSTANCE_COUNT), instanceCount);
-    // 新增：更新插件数量
-    SetWindowTextW(GetDlgItem(hWnd, IDC_PLUGIN_COUNT), pluginCount);
+    // 更新MetaMod状态
+    SetWindowTextW(GetDlgItem(hWnd, IDC_MM_STATUS), mmStatus);
 }
 
 // 更新实例列表

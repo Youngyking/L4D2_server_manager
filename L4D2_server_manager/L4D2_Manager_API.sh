@@ -53,7 +53,7 @@ L4d2Dir="$ServerRoot/left4dead2"
 ScriptDir="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 PluginSourceDir="$ScriptDir/Available_Plugins"
 ReceiptsDir="$ScriptDir/Installed_Receipts"
-InstallerDir="$ScriptDir/SourceMod_Installers"、
+InstallerDir="$ScriptDir/SourceMod_Installers"
 
 # 确保目录存在
 mkdir -p "$PluginSourceDir" "$ReceiptsDir" "$InstallerDir" "$ServerRoot"

@@ -16,5 +16,6 @@ DWORD WINAPI HandleUploadSourceMod(LPVOID param);
 DWORD WINAPI HandleUploadMetaMod(LPVOID param);
 DWORD WINAPI HandleStartInstance(LPVOID param);
 DWORD WINAPI HandleStopInstance(LPVOID param);
+DWORD WINAPI HandleInstallSourceMetaMod(LPVOID param);
 
 #endif

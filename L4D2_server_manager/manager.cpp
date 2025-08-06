@@ -559,3 +559,50 @@ DWORD WINAPI HandleUploadMetaMod(LPVOID param) {
 
     return 0;
 }
+
+// 安装SourceMod与MetaMod
+DWORD WINAPI HandleInstallSourceMetaMod(LPVOID param) {
+    HWND hWnd = (HWND)param;
+
+    // 检查SSH连接状态
+    if (!g_ssh_ctx || !g_ssh_ctx->is_connected) {
+        AddLog(hWnd, L"未连接到服务器，无法安装SourceMod");
+        return 0;
+    }
+
+    // 记录开始安装的日志
+    AddLog(hWnd, L"开始执行SourceMod安装脚本...");
+
+    // 定义命令、输出缓冲区和错误信息缓冲区
+    const char* installCmd = "/home/L4D2_Manager/L4D2_Manager_API.sh install_sourcemod";
+    char output[4096] = { 0 };  // 足够大的缓冲区存储命令输出
+    char err_msg[256] = { 0 };  // 存储错误信息
+
+    // 执行SSH命令
+    bool success = l4d2_ssh_exec_command(
+        g_ssh_ctx,
+        installCmd,
+        output, sizeof(output),
+        err_msg, sizeof(err_msg)
+    );
+
+    // 将命令输出从UTF-8转换为宽字符并打印到日志
+    WCHAR output_w[4096];
+    CharToWChar_ser(output, output_w, sizeof(output_w) / sizeof(WCHAR));
+    AddLog(hWnd, output_w);
+
+    // 如果命令执行失败，额外打印错误信息
+    if (!success) {
+        WCHAR err_msg_w[256];
+        CharToWChar_ser(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
+        AddLog(hWnd, L"安装过程中出现错误:");
+        AddLog(hWnd, err_msg_w);
+    }
+    else {
+        // 安装成功后刷新状态
+        AddLog(hWnd, L"SourceMod安装命令执行完成");
+        HandleGetStatus(hWnd);  // 刷新系统状态显示
+    }
+
+    return 0;
+}

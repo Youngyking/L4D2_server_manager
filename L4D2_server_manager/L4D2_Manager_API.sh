@@ -264,11 +264,11 @@ function Install-SourceModAndMetaMod_NonInteractive() {
             echo -e "\"Plugin\"\n{\n\t\"file\"\t\"addons/metamod/bin/server\"\n}" > "$L4d2Dir/addons/metamod.vdf"
             echo "'metamod.vdf' 创建成功。"
         else
-            echo "错误: 解压 MetaMod 时出错。" >&2
+            echo "错误: 解压 MetaMod 时出错。"
             return 1
         fi
     else
-        echo "警告: 在 '$InstallerDir' 中未找到 MetaMod 安装包 (mmsource-*.tar.gz)。" >&2
+        echo "警告: 在 '$InstallerDir' 中未找到 MetaMod 安装包 (mmsource-*.tar.gz)。"
     fi
     
     local sourcemod_tar
@@ -279,11 +279,11 @@ function Install-SourceModAndMetaMod_NonInteractive() {
         if tar -xzf "$sourcemod_tar" -C "$L4d2Dir"; then
             echo "SourceMod 解压完成。"
         else
-            echo "错误: 解压 SourceMod 时出错。" >&2
+            echo "错误: 解压 SourceMod 时出错。"
             return 1
         fi
     else
-        echo "警告: 在 '$InstallerDir' 中未找到 SourceMod 安装包 (sourcemod-*.tar.gz)。" >&2
+        echo "警告: 在 '$InstallerDir' 中未找到 SourceMod 安装包 (sourcemod-*.tar.gz)。"
     fi
     
     echo "--- 安装流程执行完毕 ---"

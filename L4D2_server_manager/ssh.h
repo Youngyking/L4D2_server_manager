@@ -24,7 +24,10 @@ bool check_remote_dir(ssh_session session, const char* dir, char* err_msg, int e
 bool create_remote_dir(ssh_session session, const char* dir, char* err_msg, int err_len);
 
 // 上传文件到远程服务器（带换行符转换功能）
-bool upload_file(ssh_session session, const char* local_path, const char* remote_path, char* err_msg, int err_len);
+bool upload_file_txt(ssh_session session, const char* local_path, const char* remote_path, char* err_msg, int err_len);
+
+// 上传文件到远程服务器（一般文件）
+bool upload_file_normal(ssh_session session, const char* local_path, const char* remote_path, char* err_msg, int err_len);
 
 // 连接到SSH服务器
 bool l4d2_ssh_connect(L4D2_SSH_Context* ctx, const char* ip, const char* user, const char* pass, char* err_msg, int err_len);

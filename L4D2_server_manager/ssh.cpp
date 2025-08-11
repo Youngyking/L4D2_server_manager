@@ -138,7 +138,7 @@ bool create_remote_dir(ssh_session session, const char* dir, char* err_msg, int 
 }
 
 // 上传文件到远程服务器（带换行符转换功能）
-bool upload_file(ssh_session session, const char* local_path, const char* remote_path, char* err_msg, int err_len) {
+bool upload_file_txt(ssh_session session, const char* local_path, const char* remote_path, char* err_msg, int err_len) {
     // 创建临时文件路径
     char temp_path[256];
     snprintf(temp_path, sizeof(temp_path), "%s.tmp", local_path);
@@ -246,6 +246,86 @@ bool upload_file(ssh_session session, const char* local_path, const char* remote
     return true;
 }
 
+// 上传一般文件到远程服务器（不处理换行符，直接二进制传输）
+bool upload_file_normal(ssh_session session, const char* local_path, const char* remote_path, char* err_msg, int err_len) {
+    // 检查本地文件是否存在
+    struct stat file_stat;
+    if (stat(local_path, &file_stat) != 0) {
+        snprintf(err_msg, err_len, "无法访问本地文件: %s", local_path);
+        return false;
+    }
+
+    // 初始化SFTP会话
+    sftp_session sftp = sftp_new(session);
+    if (!sftp) {
+        snprintf(err_msg, err_len, "创建SFTP会话失败: %s", ssh_get_error(session));
+        return false;
+    }
+
+    int rc = sftp_init(sftp);
+    if (rc != SSH_OK) {
+        snprintf(err_msg, err_len, "初始化SFTP失败: %s", sftp_get_error(sftp));
+        sftp_free(sftp);
+        return false;
+    }
+
+    // 检查远程文件是否已存在
+    sftp_attributes remote_attrs = sftp_stat(sftp, remote_path);
+    if (remote_attrs) {
+        sftp_attributes_free(remote_attrs);
+        snprintf(err_msg, err_len, "远程文件已存在，跳过上传");
+        sftp_free(sftp);
+        return true;
+    }
+
+    // 打开本地文件（二进制模式）
+    FILE* local_file;
+    if (fopen_s(&local_file, local_path, "rb") != 0) {
+        snprintf(err_msg, err_len, "无法打开本地文件: %s", local_path);
+        sftp_free(sftp);
+        return false;
+    }
+
+    // 创建远程文件
+    sftp_file remote_file = sftp_open(sftp, remote_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (!remote_file) {
+        snprintf(err_msg, err_len, "创建远程文件失败: %s", sftp_get_error(sftp));
+        fclose(local_file);
+        sftp_free(sftp);
+        return false;
+    }
+
+    // 传输文件内容（二进制方式，不做任何转换）
+    char buffer[4096];
+    size_t nread;
+    while ((nread = fread(buffer, 1, sizeof(buffer), local_file)) > 0) {
+        if (sftp_write(remote_file, buffer, nread) != (int)nread) {
+            snprintf(err_msg, err_len, "文件传输失败: %s", sftp_get_error(sftp));
+            fclose(local_file);
+            sftp_close(remote_file);
+            sftp_free(sftp);
+            return false;
+        }
+    }
+
+    // 检查本地文件读取是否出错
+    if (ferror(local_file) != 0) {
+        snprintf(err_msg, err_len, "读取本地文件时出错");
+        fclose(local_file);
+        sftp_close(remote_file);
+        sftp_free(sftp);
+        return false;
+    }
+
+    // 清理资源
+    fclose(local_file);
+    sftp_close(remote_file);
+    sftp_free(sftp);
+
+    snprintf(err_msg, err_len, "文件上传成功");
+    return true;
+}
+
 // 检查并上传API脚本
 bool l4d2_ssh_upload_api_script(L4D2_SSH_Context* ctx, char* err_msg, int err_len) {
     if (!ctx || !ctx->is_connected) {
@@ -265,7 +345,7 @@ bool l4d2_ssh_upload_api_script(L4D2_SSH_Context* ctx, char* err_msg, int err_le
     }
 
     // 上传脚本文件
-    if (!upload_file(ctx->session, local_file, remote_file, err_msg, err_len)) {
+    if (!upload_file_txt(ctx->session, local_file, remote_file, err_msg, err_len)) {
         return false;  // 上传失败直接返回
     }
 

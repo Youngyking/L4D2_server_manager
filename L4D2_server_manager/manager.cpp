@@ -434,7 +434,7 @@ DWORD WINAPI HandleUploadSourceMod(LPVOID param) {
     }
 
     // 打开文件选择对话框
-    WCHAR filter[] = L"SourceMod安装包 (*.tar.gz)|*.tar.gz|所有文件 (*.*)|*.*|";
+    WCHAR filter[] = L"所有文件 (*.*)\0*.*\0tar.gz压缩包 (*.tar.gz)\0*.tar.gz\0\0";
     WCHAR fileName[256] = { 0 };
     OPENFILENAMEW ofn = { 0 };
     ofn.lStructSize = sizeof(OPENFILENAMEW);
@@ -471,10 +471,11 @@ DWORD WINAPI HandleUploadSourceMod(LPVOID param) {
 
     // 上传文件
     AddLog(hWnd, L"开始上传SourceMod安装包...");
-    if (upload_file(g_ssh_ctx->session, local_path, remote_path, err_msg, sizeof(err_msg))) {
+    if (upload_file_normal(g_ssh_ctx->session, local_path, remote_path, err_msg, sizeof(err_msg))) {
         WCHAR success_msg[256];
         CharToWChar(err_msg, success_msg, sizeof(success_msg) / sizeof(WCHAR));
         AddLog(hWnd, success_msg);
+        AddLog(hWnd, L"上传成功");
     }
     else {
         WCHAR err_w[256];
@@ -499,7 +500,7 @@ DWORD WINAPI HandleUploadMetaMod(LPVOID param) {
 
     // 检查并创建远程目录
     if (!check_remote_dir(g_ssh_ctx->session, remote_dir, err_msg, sizeof(err_msg))) {
-        AddLog(hWnd, L"远程目录不存在，尝试创建...");
+        AddLog(hWnd, L"远程目录不存在或ssh连接失败，尝试连接并创建...");
         if (!create_remote_dir(g_ssh_ctx->session, remote_dir, err_msg, sizeof(err_msg))) {
             WCHAR err_w[256];
             CharToWChar(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
@@ -509,7 +510,7 @@ DWORD WINAPI HandleUploadMetaMod(LPVOID param) {
     }
 
     // 打开文件选择对话框
-    WCHAR filter[] = L"MetaMod安装包 (*.tar.gz)|*.tar.gz|所有文件 (*.*)|*.*|";
+    WCHAR filter[] = L"所有文件 (*.*)\0*.*\0tar.gz压缩包 (*.tar.gz)\0*.tar.gz\0\0";
     WCHAR fileName[256] = { 0 };
     OPENFILENAMEW ofn = { 0 };
     ofn.lStructSize = sizeof(OPENFILENAMEW);
@@ -546,10 +547,11 @@ DWORD WINAPI HandleUploadMetaMod(LPVOID param) {
 
     // 上传文件
     AddLog(hWnd, L"开始上传MetaMod安装包...");
-    if (upload_file(g_ssh_ctx->session, local_path, remote_path, err_msg, sizeof(err_msg))) {
+    if (upload_file_normal(g_ssh_ctx->session, local_path, remote_path, err_msg, sizeof(err_msg))) {
         WCHAR success_msg[256];
         CharToWChar(err_msg, success_msg, sizeof(success_msg) / sizeof(WCHAR));
         AddLog(hWnd, success_msg);
+        AddLog(hWnd, L"上传成功");
     }
     else {
         WCHAR err_w[256];

@@ -95,22 +95,6 @@ void CreateAllControls(HWND hWnd, HINSTANCE hInst) {
         WS_CHILD | WS_VISIBLE | SS_LEFT,
         140, 270, 100, 30, hWnd, (HMENU)IDC_MM_STATUS, hInst, NULL);
 
-    //// 服务器实例数
-    //CreateWindowW(L"STATIC", L"服务器实例:",
-    //    WS_CHILD | WS_VISIBLE | SS_LEFT,
-    //    30, 250, 100, 20, hWnd, NULL, hInst, NULL);
-    //CreateWindowW(L"STATIC", L"0",
-    //    WS_CHILD | WS_VISIBLE | SS_LEFT,
-    //    140, 250, 100, 20, hWnd, (HMENU)IDC_INSTANCE_COUNT, hInst, NULL);
-
-    //// 已安装插件数
-    //CreateWindowW(L"STATIC", L"已安装插件:",
-    //    WS_CHILD | WS_VISIBLE | SS_LEFT,
-    //    30, 290, 100, 20, hWnd, NULL, hInst, NULL);
-    //CreateWindowW(L"STATIC", L"0",
-    //    WS_CHILD | WS_VISIBLE | SS_LEFT,
-    //    140, 290, 100, 20, hWnd, (HMENU)IDC_PLUGIN_COUNT, hInst, NULL);
-
     // 2.2 操作按钮
     CreateWindowW(L"BUTTON", L"部署/更新服务器",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,

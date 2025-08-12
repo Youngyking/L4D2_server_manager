@@ -12,6 +12,7 @@
 #include "manager.h"
 #include "ssh.h"
 #include "resource.h"
+#include "plugin_manager.h"
 #include <fcntl.h>
 #include <string.h>
 
@@ -170,7 +171,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             CreateThread(NULL, 0, HandleInstallSourceMetaMod, (LPVOID)hWnd, 0, NULL);
             break;
         case IDC_PLUGIN_BTN:
-            CreateThread(NULL, 0, HandleManagePlugin, (LPVOID)hWnd, 0, NULL)
+            // 检查是否已连接到服务器
+            if (!g_ssh_ctx || !g_ssh_ctx->is_connected) {
+                // 未连接时添加日志并禁止操作
+                AddLog(hWnd, L"未连接无法打开插件管理面板");
+            }
+            else {
+                // 已连接时创建线程处理插件管理
+                CreateThread(NULL, 0, HandleManagePlugin, (LPVOID)hWnd, 0, NULL);
+            }
             break;
         default:
             return DefWindowProc(hWnd, message, wParam, lParam);

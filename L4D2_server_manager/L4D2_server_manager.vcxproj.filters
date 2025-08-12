@@ -36,6 +36,9 @@
     <ClInclude Include="cJSON.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="plugin_manager.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -51,6 +54,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="cJSON.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="plugin_manager.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

@@ -470,7 +470,7 @@ DWORD WINAPI HandleUploadSourceMod(LPVOID param) {
     snprintf(remote_path, sizeof(remote_path), "%s/%s", remote_dir, file_name);
 
     // 上传文件
-    AddLog(hWnd, L"开始上传SourceMod安装包...");
+    AddLog(hWnd, L"开始上传SourceMod安装包，若文件较大则请耐心等候...");
     if (upload_file_normal(g_ssh_ctx->session, local_path, remote_path, err_msg, sizeof(err_msg))) {
         WCHAR success_msg[256];
         CharToWChar(err_msg, success_msg, sizeof(success_msg) / sizeof(WCHAR));
@@ -546,7 +546,7 @@ DWORD WINAPI HandleUploadMetaMod(LPVOID param) {
     snprintf(remote_path, sizeof(remote_path), "%s/%s", remote_dir, file_name);
 
     // 上传文件
-    AddLog(hWnd, L"开始上传MetaMod安装包...");
+    AddLog(hWnd, L"开始上传MetaMod安装包，若文件较大则请耐心等候......");
     if (upload_file_normal(g_ssh_ctx->session, local_path, remote_path, err_msg, sizeof(err_msg))) {
         WCHAR success_msg[256];
         CharToWChar(err_msg, success_msg, sizeof(success_msg) / sizeof(WCHAR));

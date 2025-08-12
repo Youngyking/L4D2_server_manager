@@ -296,14 +296,19 @@ bool upload_file_normal(ssh_session session, const char* local_path, const char*
     }
 
     // 传输文件内容（二进制方式，不做任何转换）
-    char buffer[4096];
+    const size_t BUFFER_SIZE = 65536;  // ssh协议对缓冲区大小有限制
+    char *buffer = (char *)malloc(BUFFER_SIZE);
     size_t nread;
-    while ((nread = fread(buffer, 1, sizeof(buffer), local_file)) > 0) {
-        if (sftp_write(remote_file, buffer, nread) != (int)nread) {
+    ssize_t nwrite;
+    while ((nread = fread(buffer, 1, BUFFER_SIZE, local_file)) > 0) {
+        nwrite = sftp_write(remote_file, buffer, nread);
+        if (nwrite < 0) {
             snprintf(err_msg, err_len, "文件传输失败: %s", sftp_get_error(sftp));
+            // 清理资源
             fclose(local_file);
             sftp_close(remote_file);
             sftp_free(sftp);
+            free(buffer);
             return false;
         }
     }
@@ -318,6 +323,7 @@ bool upload_file_normal(ssh_session session, const char* local_path, const char*
     }
 
     // 清理资源
+    free(buffer);
     fclose(local_file);
     sftp_close(remote_file);
     sftp_free(sftp);

@@ -25,6 +25,8 @@
 #define IDC_INSTALL_BTN     1005  // 安装插件按钮
 #define IDC_UNINSTALL_EDIT  1006  // 卸载插件输入框
 #define IDC_UNINSTALL_BTN   1007  // 卸载插件按钮
+#define IDC_DELETE_EDIT     1008  // 删除可用插件输入框
+#define IDC_DELETE_BTN      1009  // 删除可用插件按钮
 
 // 全局SSH上下文
 extern L4D2_SSH_Context* g_ssh_ctx;
@@ -54,6 +56,9 @@ void OnInstallPlugin(HWND hWnd);
 
 // 卸载插件处理
 void OnUninstallPlugin(HWND hWnd);
+
+// 删除可用插件处理
+void OnDeleteAvailablePlugin(HWND hWnd);
 
 // 递归上传目录
 bool UploadDirectory(HWND hWnd, const WCHAR* local_dir, const std::string& remote_dir);
@@ -89,7 +94,7 @@ DWORD WINAPI HandleManagePlugin(LPVOID param) {
         PLUGIN_WINDOW_CLASS,
         L"插件管理",
         WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME & ~WS_MAXIMIZEBOX,
-        CW_USEDEFAULT, CW_USEDEFAULT, 800, 600,
+        CW_USEDEFAULT, CW_USEDEFAULT, 800, 650,  // 增加窗口高度以容纳新控件
         hParent,
         NULL,
         hInst,
@@ -181,6 +186,21 @@ void CreatePluginWindowControls(HWND hWnd, HINSTANCE hInst) {
         670, 450, 100, 30,
         hWnd, (HMENU)IDC_UNINSTALL_BTN, hInst, NULL
     );
+
+    // 新增：删除可用插件输入框和按钮（放在上传插件按钮下方）
+    CreateWindowW(
+        L"EDIT", L"输入要删除的可用插件名",
+        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
+        20, 500, 150, 30,
+        hWnd, (HMENU)IDC_DELETE_EDIT, hInst, NULL
+    );
+
+    CreateWindowW(
+        L"BUTTON", L"删除可用插件",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        190, 500, 120, 30,
+        hWnd, (HMENU)IDC_DELETE_BTN, hInst, NULL
+    );
 }
 
 // 插件窗口消息处理
@@ -209,6 +229,9 @@ LRESULT CALLBACK PluginWindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
             break;
         case IDC_UNINSTALL_BTN:
             OnUninstallPlugin(hWnd);
+            break;
+        case IDC_DELETE_BTN:  // 新增：处理删除可用插件按钮点击
+            OnDeleteAvailablePlugin(hWnd);
             break;
         }
         return 0;
@@ -384,7 +407,7 @@ void OnUploadPlugins(HWND hWnd) {
     // 创建服务器端目录
     char cmd[512];
     snprintf(cmd, sizeof(cmd), "mkdir -p %s", remote_dir.c_str());
-    char output[4096] = { 0 }; 
+    char output[4096] = { 0 };
     char err_msg[256] = { 0 };
     if (!l4d2_ssh_exec_command(g_ssh_ctx, cmd, output, sizeof(output), err_msg, sizeof(err_msg))) {
         WCHAR err_w[256];
@@ -545,5 +568,42 @@ void OnUninstallPlugin(HWND hWnd) {
         WCHAR err_w[256];
         CharToWChar_ser(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
         MessageBoxW(hWnd, err_w, L"卸载失败", MB_ICONERROR);
+    }
+}
+
+// 新增：删除可用插件处理函数
+void OnDeleteAvailablePlugin(HWND hWnd) {
+    if (!g_ssh_ctx || !g_ssh_ctx->is_connected) {
+        MessageBoxW(hWnd, L"未连接到服务器", L"错误", MB_ICONERROR);
+        return;
+    }
+
+    // 获取输入的插件名
+    WCHAR plugin_name_w[256];
+    GetWindowTextW(GetDlgItem(hWnd, IDC_DELETE_EDIT), plugin_name_w, sizeof(plugin_name_w) / sizeof(WCHAR));
+    if (wcscmp(plugin_name_w, L"") == 0) {
+        MessageBoxW(hWnd, L"请输入要删除的可用插件名称", L"提示", MB_OK);
+        return;
+    }
+
+    // 转换为多字节
+    char plugin_name[256];
+    WCharToChar_ser(plugin_name_w, plugin_name, sizeof(plugin_name));
+
+    // 构建删除命令（删除Available_Plugins目录下的插件文件夹）
+    char cmd[512];
+    snprintf(cmd, sizeof(cmd), "rm -rf /home/L4D2_Manager/Available_Plugins/%s", plugin_name);
+    char output[4096] = { 0 };
+    char err_msg[256] = { 0 };
+    bool success = l4d2_ssh_exec_command(g_ssh_ctx, cmd, output, sizeof(output), err_msg, sizeof(err_msg));
+
+    if (success) {
+        MessageBoxW(hWnd, L"可用插件删除成功", L"提示", MB_OK);
+        UpdatePluginLists(hWnd);  // 删除后更新列表
+    }
+    else {
+        WCHAR err_w[256];
+        CharToWChar_ser(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
+        MessageBoxW(hWnd, err_w, L"删除失败", MB_ICONERROR);
     }
 }

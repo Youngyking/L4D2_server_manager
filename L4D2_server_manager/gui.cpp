@@ -35,7 +35,7 @@ void CreateAllControls(HWND hWnd, HINSTANCE hInst) {
     CreateWindowW(L"STATIC", L"·þÎñÆ÷IP:",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
         30, 30, 80, 20, hWnd, NULL, hInst, NULL);
-    CreateWindowW(L"EDIT", L"124.222.57.56",
+    CreateWindowW(L"EDIT", L"xxx.xxx.xxx.xxx",
         WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
         120, 30, 200, 25, hWnd, (HMENU)IDC_IP_EDIT, hInst, NULL);
 

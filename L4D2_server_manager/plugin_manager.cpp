@@ -5,13 +5,16 @@
 #include "ssh.h"
 #include "manager.h"
 #include "plugin_manager.h"
+#include "cJSON.h"
 #include <shlwapi.h>
 #include <vector>
 #include <string>
-
+#include <commdlg.h>
+#include <shlobj.h>
 
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "shlwapi.lib")
+#pragma comment(lib, "ole32.lib")  // 用于文件夹选择对话框
 
 // 插件管理窗口类名和控件ID
 #define PLUGIN_WINDOW_CLASS L"PluginManagerClass"
@@ -23,7 +26,7 @@
 #define IDC_UNINSTALL_EDIT  1006  // 卸载插件输入框
 #define IDC_UNINSTALL_BTN   1007  // 卸载插件按钮
 
-// 全局SSH上下文（假设从主窗口传递）
+// 全局SSH上下文
 extern L4D2_SSH_Context* g_ssh_ctx;
 
 // 字符串转换辅助函数
@@ -243,42 +246,42 @@ void UpdatePluginLists(HWND hWnd) {
         return;
     }
 
-    // 解析JSON结果（简化版解析，实际项目建议使用JSON库）
+    // 解析JSON结果（使用cJSON库）
     std::vector<std::string> available_plugins;
     std::vector<std::string> installed_plugins;
-    std::string json(output);
 
-    // 提取可用插件列表
-    size_t avail_start = json.find("\"available\": [") + 13;
-    size_t avail_end = json.find("]", avail_start);
-    if (avail_start < avail_end) {
-        std::string avail_str = json.substr(avail_start, avail_end - avail_start);
-        size_t pos = 0;
-        while (pos < avail_str.size()) {
-            size_t start = avail_str.find("\"", pos) + 1;
-            if (start == std::string::npos) break;
-            size_t end = avail_str.find("\"", start);
-            if (end == std::string::npos) break;
-            available_plugins.push_back(avail_str.substr(start, end - start));
-            pos = end + 1;
+    cJSON* root = cJSON_Parse(output);
+    if (!root) {
+        MessageBoxW(hWnd, L"JSON解析失败", L"错误", MB_ICONERROR);
+        return;
+    }
+
+    // 解析可用插件列表
+    cJSON* available_array = cJSON_GetObjectItem(root, "available");
+    if (cJSON_IsArray(available_array)) {
+        int array_size = cJSON_GetArraySize(available_array);
+        for (int i = 0; i < array_size; i++) {
+            cJSON* item = cJSON_GetArrayItem(available_array, i);
+            if (cJSON_IsString(item) && item->valuestring) {
+                available_plugins.push_back(item->valuestring);
+            }
         }
     }
 
-    // 提取已安装插件列表
-    size_t inst_start = json.find("\"installed\": [") + 14;
-    size_t inst_end = json.find("]", inst_start);
-    if (inst_start < inst_end) {
-        std::string inst_str = json.substr(inst_start, inst_end - inst_start);
-        size_t pos = 0;
-        while (pos < inst_str.size()) {
-            size_t start = inst_str.find("\"", pos) + 1;
-            if (start == std::string::npos) break;
-            size_t end = inst_str.find("\"", start);
-            if (end == std::string::npos) break;
-            installed_plugins.push_back(inst_str.substr(start, end - start));
-            pos = end + 1;
+    // 解析已安装插件列表
+    cJSON* installed_array = cJSON_GetObjectItem(root, "installed");
+    if (cJSON_IsArray(installed_array)) {
+        int array_size = cJSON_GetArraySize(installed_array);
+        for (int i = 0; i < array_size; i++) {
+            cJSON* item = cJSON_GetArrayItem(installed_array, i);
+            if (cJSON_IsString(item) && item->valuestring) {
+                installed_plugins.push_back(item->valuestring);
+            }
         }
     }
+
+    // 释放JSON对象
+    cJSON_Delete(root);
 
     // 更新可用插件列表
     HWND hAvailable = GetDlgItem(hWnd, IDC_AVAILABLE_LIST);
@@ -305,79 +308,99 @@ void UpdatePluginLists(HWND hWnd) {
     }
 }
 
-// 上传插件处理函数
+// 上传插件处理函数（修改为用户选择单个文件夹）
 void OnUploadPlugins(HWND hWnd) {
     if (!g_ssh_ctx || !g_ssh_ctx->is_connected) {
         MessageBoxW(hWnd, L"未连接到服务器", L"错误", MB_ICONERROR);
         return;
     }
 
-    // 获取本地resource目录路径（项目根目录下的resource文件夹）
+    // 获取项目根目录下的resource文件夹路径
     WCHAR local_res_path[MAX_PATH];
     if (!GetModuleFileNameW(NULL, local_res_path, MAX_PATH)) {
         MessageBoxW(hWnd, L"获取程序路径失败", L"错误", MB_ICONERROR);
         return;
     }
-    PathRemoveFileSpecW(local_res_path);  // 移除可执行文件名
+    PathRemoveFileSpecW(local_res_path);  // 移除可执行文件名，获取程序所在目录
     PathAppendW(local_res_path, L"resource");  // 拼接resource目录
 
-    // 检查目录是否存在
+    // 检查resource目录是否存在
     if (!PathIsDirectoryW(local_res_path)) {
         MessageBoxW(hWnd, L"本地resource目录不存在", L"错误", MB_ICONERROR);
         return;
     }
 
-    // 遍历resource目录下的所有插件文件夹
-    WIN32_FIND_DATAW find_data;
-    WCHAR search_path[MAX_PATH];
-    swprintf_s(search_path, L"%s\\*", local_res_path);
-    HANDLE hFind = FindFirstFileW(search_path, &find_data);
+    // 文件夹选择对话框配置
+    BROWSEINFOW bi = { 0 };
+    bi.hwndOwner = hWnd;
+    bi.lpszTitle = L"请选择要上传的插件文件夹（位于resource目录下）";
+    bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_USENEWUI;  // 只显示目录，使用新UI
+    bi.lParam = (LPARAM)local_res_path;  // 传递初始目录
 
-    if (hFind == INVALID_HANDLE_VALUE) {
-        MessageBoxW(hWnd, L"遍历插件目录失败", L"错误", MB_ICONERROR);
+    // 设置初始目录回调
+    bi.lpfn = [](HWND hwnd, UINT uMsg, LPARAM lParam, LPARAM lpData) -> int {
+        if (uMsg == BFFM_INITIALIZED) {
+            // 初始化完成后设置初始目录
+            SendMessageW(hwnd, BFFM_SETSELECTIONW, TRUE, lpData);
+        }
+        return 0;
+        };
+
+    // 显示文件夹选择对话框
+    LPITEMIDLIST pidl = SHBrowseForFolderW(&bi);
+    if (!pidl) {
+        return;  // 用户取消选择
+    }
+
+    // 获取选择的文件夹路径
+    WCHAR local_plugin_dir[MAX_PATH];
+    if (!SHGetPathFromIDListW(pidl, local_plugin_dir)) {
+        MessageBoxW(hWnd, L"获取文件夹路径失败", L"错误", MB_ICONERROR);
+        CoTaskMemFree(pidl);
+        return;
+    }
+    CoTaskMemFree(pidl);  // 释放内存
+
+    // 验证选择的文件夹是否在resource目录下
+    if (wcsncmp(local_plugin_dir, local_res_path, wcslen(local_res_path)) != 0) {
+        MessageBoxW(hWnd, L"请选择resource目录下的插件文件夹", L"提示", MB_OK);
         return;
     }
 
-    do {
-        // 只处理目录（跳过.和..）
-        if ((find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
-            wcscmp(find_data.cFileName, L".") != 0 &&
-            wcscmp(find_data.cFileName, L"..") != 0) {
+    // 提取插件文件夹名称（最后一级目录名）
+    WCHAR* plugin_name_w = PathFindFileNameW(local_plugin_dir);
+    if (!plugin_name_w || *plugin_name_w == L'\0') {
+        MessageBoxW(hWnd, L"无效的插件文件夹名称", L"错误", MB_ICONERROR);
+        return;
+    }
 
-            // 插件名称（文件夹名）
-            char plugin_name[256];
-            WCharToChar_ser(find_data.cFileName, plugin_name, 256);
+    // 转换插件名称为多字节字符串
+    char plugin_name[256];
+    WCharToChar_ser(plugin_name_w, plugin_name, sizeof(plugin_name));
 
-            // 远程插件目录
-            std::string remote_dir = "/home/L4D2_Manager/Available_Plugins/" + std::string(plugin_name);
+    // 服务器端目标目录：/home/L4D2_Manager/Available_Plugins/插件名
+    std::string remote_dir = "/home/L4D2_Manager/Available_Plugins/" + std::string(plugin_name);
 
-            // 创建远程目录
-            char cmd[512];
-            snprintf(cmd, sizeof(cmd), "mkdir -p %s", remote_dir.c_str());
-            char err_msg[256] = { 0 };
-            if (!l4d2_ssh_exec_command(g_ssh_ctx, cmd, nullptr, 0, err_msg, sizeof(err_msg))) {
-                WCHAR err_w[256];
-                CharToWChar_ser(err_msg, err_w, 256);
-                MessageBoxW(hWnd, err_w, L"创建远程目录失败", MB_ICONERROR);
-                continue;
-            }
+    // 创建服务器端目录
+    char cmd[512];
+    snprintf(cmd, sizeof(cmd), "mkdir -p %s", remote_dir.c_str());
+    char output[4096] = { 0 }; 
+    char err_msg[256] = { 0 };
+    if (!l4d2_ssh_exec_command(g_ssh_ctx, cmd, output, sizeof(output), err_msg, sizeof(err_msg))) {
+        WCHAR err_w[256];
+        CharToWChar_ser(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
+        MessageBoxW(hWnd, err_w, L"创建远程目录失败", MB_ICONERROR);
+        return;
+    }
 
-            // 本地插件目录
-            WCHAR local_plugin_dir[MAX_PATH];
-            swprintf_s(local_plugin_dir, L"%s\\%s", local_res_path, find_data.cFileName);
-
-            // 递归上传目录内容
-            if (!UploadDirectory(hWnd, local_plugin_dir, remote_dir)) {
-                WCHAR msg[512];
-                swprintf_s(msg, L"插件 %s 上传失败", find_data.cFileName);
-                MessageBoxW(hWnd, msg, L"警告", MB_ICONWARNING);
-            }
-        }
-    } while (FindNextFileW(hFind, &find_data));
-
-    FindClose(hFind);
-    UpdatePluginLists(hWnd);  // 上传完成后更新列表
-    MessageBoxW(hWnd, L"插件上传完成", L"提示", MB_OK);
+    // 递归上传文件夹内容
+    if (UploadDirectory(hWnd, local_plugin_dir, remote_dir)) {
+        UpdatePluginLists(hWnd);  // 上传成功后更新列表
+        MessageBoxW(hWnd, L"插件上传成功", L"提示", MB_OK);
+    }
+    else {
+        MessageBoxW(hWnd, L"插件上传失败", L"错误", MB_ICONERROR);
+    }
 }
 
 // 递归上传目录内容
@@ -393,18 +416,18 @@ bool UploadDirectory(HWND hWnd, const WCHAR* local_dir, const std::string& remot
 
     bool result = true;
     do {
-        // 处理子目录
+        // 处理子目录（跳过.和..）
         if ((find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
             wcscmp(find_data.cFileName, L".") != 0 &&
             wcscmp(find_data.cFileName, L"..") != 0) {
 
-            // 子目录路径
+            // 构建本地子目录路径
             WCHAR local_subdir[MAX_PATH];
             swprintf_s(local_subdir, L"%s\\%s", local_dir, find_data.cFileName);
 
-            // 远程子目录路径
+            // 构建远程子目录路径
             char subdir_name[256];
-            WCharToChar_ser(find_data.cFileName, subdir_name, 256);
+            WCharToChar_ser(find_data.cFileName, subdir_name, sizeof(subdir_name));
             std::string remote_subdir = remote_dir + "/" + subdir_name;
 
             // 创建远程子目录
@@ -423,24 +446,24 @@ bool UploadDirectory(HWND hWnd, const WCHAR* local_dir, const std::string& remot
         }
         // 处理文件
         else if (!(find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
-            // 本地文件路径
+            // 构建本地文件路径
             WCHAR local_file[MAX_PATH];
             swprintf_s(local_file, L"%s\\%s", local_dir, find_data.cFileName);
 
-            // 远程文件路径
+            // 构建远程文件路径
             char filename[256];
-            WCharToChar_ser(find_data.cFileName, filename, 256);
+            WCharToChar_ser(find_data.cFileName, filename, sizeof(filename));
             std::string remote_file = remote_dir + "/" + filename;
 
             // 转换本地路径为多字节
             char local_path[512];
-            WCharToChar_ser(local_file, local_path, 512);
+            WCharToChar_ser(local_file, local_path, sizeof(local_path));
 
             // 上传文件
             char err_msg[256] = { 0 };
             if (!upload_file_normal(g_ssh_ctx->session, local_path, remote_file.c_str(), err_msg, sizeof(err_msg))) {
                 WCHAR err_w[256];
-                CharToWChar_ser(err_msg, err_w, 256);
+                CharToWChar_ser(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
                 MessageBoxW(hWnd, err_w, L"文件上传失败", MB_ICONWARNING);
                 result = false;
             }
@@ -460,7 +483,7 @@ void OnInstallPlugin(HWND hWnd) {
 
     // 获取输入的插件名
     WCHAR plugin_name_w[256];
-    GetWindowTextW(GetDlgItem(hWnd, IDC_INSTALL_EDIT), plugin_name_w, 256);
+    GetWindowTextW(GetDlgItem(hWnd, IDC_INSTALL_EDIT), plugin_name_w, sizeof(plugin_name_w) / sizeof(WCHAR));
     if (wcscmp(plugin_name_w, L"") == 0) {
         MessageBoxW(hWnd, L"请输入插件名称", L"提示", MB_OK);
         return;
@@ -468,7 +491,7 @@ void OnInstallPlugin(HWND hWnd) {
 
     // 转换为多字节
     char plugin_name[256];
-    WCharToChar_ser(plugin_name_w, plugin_name, 256);
+    WCharToChar_ser(plugin_name_w, plugin_name, sizeof(plugin_name));
 
     // 执行安装命令
     char cmd[512];
@@ -479,11 +502,11 @@ void OnInstallPlugin(HWND hWnd) {
 
     if (success) {
         MessageBoxW(hWnd, L"插件安装成功", L"提示", MB_OK);
-        UpdatePluginLists(hWnd);  // 更新列表
+        UpdatePluginLists(hWnd);  // 安装后更新列表
     }
     else {
         WCHAR err_w[256];
-        CharToWChar_ser(err_msg, err_w, 256);
+        CharToWChar_ser(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
         MessageBoxW(hWnd, err_w, L"安装失败", MB_ICONERROR);
     }
 }
@@ -497,7 +520,7 @@ void OnUninstallPlugin(HWND hWnd) {
 
     // 获取输入的插件名
     WCHAR plugin_name_w[256];
-    GetWindowTextW(GetDlgItem(hWnd, IDC_UNINSTALL_EDIT), plugin_name_w, 256);
+    GetWindowTextW(GetDlgItem(hWnd, IDC_UNINSTALL_EDIT), plugin_name_w, sizeof(plugin_name_w) / sizeof(WCHAR));
     if (wcscmp(plugin_name_w, L"") == 0) {
         MessageBoxW(hWnd, L"请输入插件名称", L"提示", MB_OK);
         return;
@@ -505,7 +528,7 @@ void OnUninstallPlugin(HWND hWnd) {
 
     // 转换为多字节
     char plugin_name[256];
-    WCharToChar_ser(plugin_name_w, plugin_name, 256);
+    WCharToChar_ser(plugin_name_w, plugin_name, sizeof(plugin_name));
 
     // 执行卸载命令
     char cmd[512];
@@ -516,11 +539,11 @@ void OnUninstallPlugin(HWND hWnd) {
 
     if (success) {
         MessageBoxW(hWnd, L"插件卸载成功", L"提示", MB_OK);
-        UpdatePluginLists(hWnd);  // 更新列表
+        UpdatePluginLists(hWnd);  // 卸载后更新列表
     }
     else {
         WCHAR err_w[256];
-        CharToWChar_ser(err_msg, err_w, 256);
+        CharToWChar_ser(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
         MessageBoxW(hWnd, err_w, L"卸载失败", MB_ICONERROR);
     }
 }

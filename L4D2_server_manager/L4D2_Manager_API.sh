@@ -327,6 +327,94 @@ function Resolve-Path() {
     return 0
 }
 
+# --- 地图管理函数 ---
+function List-InstalledMaps() {
+    local mapInstallFile="$ScriptDir/map_install.txt"
+    
+    # 如果文件不存在，创建空文件
+    if [ ! -f "$mapInstallFile" ]; then
+        touch "$mapInstallFile"
+    fi
+    
+    # 提取所有唯一的地图名称
+    local maps=$(awk -F '|' '{print $1}' "$mapInstallFile" | sort | uniq)
+    
+    # 生成JSON格式
+    echo -n "{\"installed_maps\": ["
+    local first=true
+    while IFS= read -r map; do
+        if [ -n "$map" ]; then
+            if ! $first; then
+                echo -n ","
+            fi
+            echo -n "\"$map\""
+            first=false
+        fi
+    done <<< "$maps"
+    echo "]}"
+}
+
+function Install-Map() {
+    local mapName="$1"
+    local mapTmpDir="$ScriptDir/map_tmp/$mapName"
+    local mapInstallFile="$ScriptDir/map_install.txt"
+    local targetDir="$L4d2Dir/addons"
+    
+    # 检查临时目录是否存在
+    if [ ! -d "$mapTmpDir" ]; then
+        echo "错误: 地图临时目录不存在: $mapTmpDir" >&2
+        exit 1
+    fi
+    
+    # 移动文件到目标目录
+    echo "正在安装地图: $mapName"
+    rsync -a "$mapTmpDir/" "$targetDir/"
+    
+    if [ $? -ne 0 ]; then
+        echo "错误: 移动地图文件失败" >&2
+        exit 1
+    fi
+    
+    # 记录安装的文件到map_install.txt
+    echo "正在记录安装的文件..."
+    (cd "$mapTmpDir" && find . -type f | sed "s|^\./|$mapName|") | while read -r file; do
+        echo "$mapName|$file" >> "$mapInstallFile"
+    done
+    
+    # 清理临时文件
+    rm -rf "$mapTmpDir"
+    
+    echo "地图 '$mapName' 安装成功"
+}
+
+function Uninstall-Map() {
+    local mapName="$1"
+    local mapInstallFile="$ScriptDir/map_install.txt"
+    local tempFile=$(mktemp)
+    
+    # 检查地图是否存在
+    if ! grep -q "^$mapName|" "$mapInstallFile"; then
+        echo "错误: 未找到地图 '$mapName' 的安装记录" >&2
+        exit 1
+    fi
+    
+    # 提取该地图的所有文件并删除
+    echo "正在卸载地图: $mapName"
+    grep "^$mapName|" "$mapInstallFile" | cut -d'|' -f2- | while read -r file; do
+        local targetFile="$L4d2Dir/addons/$file"
+        if [ -f "$targetFile" ]; then
+            rm -f "$targetFile"
+            echo "已删除: $targetFile"
+        fi
+    done
+    
+    # 从安装记录中移除该地图的信息
+    grep -v "^$mapName|" "$mapInstallFile" > "$tempFile"
+    mv "$tempFile" "$mapInstallFile"
+    
+    echo "地图 '$mapName' 卸载成功"
+}
+
 # --- JSON生成辅助函数 ---
 json_escape() {
     printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'
@@ -419,6 +507,18 @@ case "$ACTION" in
         
     install_sourcemod)
         Install-SourceModAndMetaMod_NonInteractive
+        ;;
+
+    list_maps)
+        List-InstalledMaps
+        ;;
+    
+    install_map)
+        Install-Map "$1"
+        ;;
+    
+    uninstall_map)
+        Uninstall-Map "$1"
         ;;
     
     # --- 文件管理指令 ---

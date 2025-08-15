@@ -13,6 +13,7 @@
 #include "ssh.h"
 #include "resource.h"
 #include "plugin_manager.h"
+#include "map_manager.h"
 #include <fcntl.h>
 #include <string.h>
 
@@ -179,6 +180,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             else {
                 // 已连接时创建线程处理插件管理
                 CreateThread(NULL, 0, HandleManagePlugin, (LPVOID)hWnd, 0, NULL);
+            }
+            break;
+        case IDC_MAP_BTN:
+            if (!g_ssh_ctx || !g_ssh_ctx->is_connected) {
+                // 未连接时添加日志并禁止操作
+                AddLog(hWnd, L"未连接无法打开地图管理面板");
+            }
+            else {
+                CreateThread(NULL, 0, HandleManageMaps, (LPVOID)hWnd, 0, NULL);
             }
             break;
         default:

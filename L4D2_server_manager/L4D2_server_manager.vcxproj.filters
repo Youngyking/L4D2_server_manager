@@ -59,6 +59,12 @@
     <ClCompile Include="plugin_manager.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="map_manager.h">
+      <Filter>头文件</Filter>
+    </ClCompile>
+    <ClCompile Include="map_manager.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="L4D2_server_manager.rc">

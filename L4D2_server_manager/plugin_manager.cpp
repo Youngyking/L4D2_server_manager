@@ -427,7 +427,7 @@ void OnUploadPlugins(HWND hWnd) {
 }
 
 // 递归上传目录内容
-bool UploadDirectory(HWND hWnd, const WCHAR* local_dir, const std::string& remote_dir) {
+static bool UploadDirectory(HWND hWnd, const WCHAR* local_dir, const std::string& remote_dir) {
     WIN32_FIND_DATAW find_data;
     WCHAR search_path[MAX_PATH];
     swprintf_s(search_path, L"%s\\*", local_dir);

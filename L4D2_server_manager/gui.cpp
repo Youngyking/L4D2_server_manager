@@ -177,17 +177,26 @@ void CreateAllControls(HWND hWnd, HINSTANCE hInst) {
     // 4.1 插件管理按钮
     CreateWindowW(L"BUTTON", L"插件管理",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        520, 360, 200, 30, hWnd, (HMENU)IDC_PLUGIN_BTN, hInst, NULL);
+        520, 360, 140, 30, hWnd, (HMENU)IDC_PLUGIN_BTN, hInst, NULL);
 
     // 4.2 日志查看按钮
     CreateWindowW(L"BUTTON", L"清除日志",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        740, 360, 200, 30, hWnd, (HMENU)IDC_LOG_BTN, hInst, NULL);
+        680, 360, 140, 30, hWnd, (HMENU)IDC_LOG_BTN, hInst, NULL);
 
-    // 4.3 日志显示框（多行编辑框）
+    // 4.3 地图管理按钮
+    CreateWindowW(
+        L"BUTTON", L"地图管理",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        840, 360, 140, 30,  // 位置在插件管理按钮右侧
+        hWnd, (HMENU)IDC_MAP_BTN, hInst, NULL
+    );
+
+    // 4.4 日志显示框（多行编辑框）
     CreateWindowW(L"EDIT", L"",
         WS_CHILD | WS_VISIBLE | WS_BORDER | WS_VSCROLL | ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY,
         520, 400, 450, 120, hWnd, (HMENU)IDC_LOG_VIEW, hInst, NULL);
+
 }
 
 // 更新连接状态

@@ -147,6 +147,8 @@
     <ClCompile Include="gui.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="manager.cpp" />
+    <ClCompile Include="map_manager.cpp" />
+    <ClCompile Include="map_manager.h" />
     <ClCompile Include="plugin_manager.cpp" />
     <ClCompile Include="ssh.cpp" />
   </ItemGroup>

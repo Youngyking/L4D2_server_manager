@@ -41,6 +41,9 @@ void OnUninstallMap(HWND hWnd);
 // 递归上传目录
 bool UploadDirectory(HWND hWnd, const WCHAR* local_dir, const std::string& remote_dir);
 
+// 获取列表中选中的地图名称
+std::vector<std::string> GetSelectedMaps(HWND hList);
+
 // 地图管理窗口创建函数
 DWORD WINAPI HandleManageMaps(LPVOID param) {
     HWND hParent = (HWND)param;
@@ -100,13 +103,16 @@ DWORD WINAPI HandleManageMaps(LPVOID param) {
 
 // 创建地图管理窗口控件
 void CreateMapWindowControls(HWND hWnd, HINSTANCE hInst) {
-    // 1. 已安装地图列表
+    // 1. 已安装地图列表 - 修改为支持多选
     HWND hInstalledMapsList = CreateWindowW(
         WC_LISTVIEWW, L"",
-        WS_CHILD | WS_VISIBLE | WS_BORDER | LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS,
+        WS_CHILD | WS_VISIBLE | WS_BORDER | LVS_REPORT | LVS_SHOWSELALWAYS | LVS_EX_CHECKBOXES,
         20, 20, 740, 400,
         hWnd, (HMENU)IDC_INSTALLED_MAPS_LIST, hInst, NULL
     );
+
+    // 设置列表扩展样式以支持复选框
+    ListView_SetExtendedListViewStyle(hInstalledMapsList, LVS_EX_CHECKBOXES);
 
     // 设置列表头
     LVCOLUMNW lvc = { 0 };
@@ -132,18 +138,11 @@ void CreateMapWindowControls(HWND hWnd, HINSTANCE hInst) {
         hWnd, (HMENU)IDC_UPLOAD_MAP_BTN, hInst, NULL
     );
 
-    // 卸载地图输入框和按钮
+    // 卸载地图按钮 - 调整位置，移除文本框
     CreateWindowW(
-        L"EDIT", L"输入地图名称",
-        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-        360, 450, 150, 30,
-        hWnd, (HMENU)IDC_UNINSTALL_MAP_EDIT, hInst, NULL
-    );
-
-    CreateWindowW(
-        L"BUTTON", L"卸载地图",
+        L"BUTTON", L"卸载选中地图",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        530, 450, 100, 30,
+        360, 450, 150, 30,
         hWnd, (HMENU)IDC_UNINSTALL_MAP_BTN, hInst, NULL
     );
 }
@@ -246,6 +245,26 @@ void UpdateMapList(HWND hWnd) {
         item.pszText = CharToWChar_ser(installed_maps[i].c_str(), name, 256);
         ListView_InsertItem(hInstalled, &item);
     }
+}
+
+// 获取列表中选中的地图名称
+std::vector<std::string> GetSelectedMaps(HWND hList) {
+    std::vector<std::string> selectedMaps;
+    int itemCount = ListView_GetItemCount(hList);
+
+    for (int i = 0; i < itemCount; i++) {
+        // 检查项目是否被勾选
+        if (ListView_GetCheckState(hList, i)) {
+            WCHAR mapName[256];
+            ListView_GetItemText(hList, i, 0, mapName, sizeof(mapName) / sizeof(WCHAR));
+
+            char mapNameA[256];
+            WCharToChar_ser(mapName, mapNameA, sizeof(mapNameA));
+            selectedMaps.push_back(std::string(mapNameA));
+        }
+    }
+
+    return selectedMaps;
 }
 
 // 上传地图处理函数
@@ -433,32 +452,56 @@ void OnUninstallMap(HWND hWnd) {
         return;
     }
 
-    // 获取输入的地图名
-    WCHAR map_name_w[256];
-    GetWindowTextW(GetDlgItem(hWnd, IDC_UNINSTALL_MAP_EDIT), map_name_w, sizeof(map_name_w) / sizeof(WCHAR));
-    if (wcscmp(map_name_w, L"") == 0) {
-        MessageBoxW(hWnd, L"请输入地图名称", L"提示", MB_OK);
+    // 获取已安装地图列表控件
+    HWND hInstalledList = GetDlgItem(hWnd, IDC_INSTALLED_MAPS_LIST);
+
+    // 获取所有选中的地图
+    std::vector<std::string> selectedMaps = GetSelectedMaps(hInstalledList);
+
+    if (selectedMaps.empty()) {
+        MessageBoxW(hWnd, L"请先勾选要卸载的地图", L"提示", MB_OK);
         return;
     }
 
-    // 转换为多字节
-    char map_name[256];
-    WCharToChar_ser(map_name_w, map_name, sizeof(map_name));
-
-    // 执行卸载命令
-    char cmd[512];
-    snprintf(cmd, sizeof(cmd), "/home/L4D2_Manager/L4D2_Manager_API.sh uninstall_map %s", map_name);
-    char output[4096] = { 0 };
-    char err_msg[256] = { 0 };
-    bool success = l4d2_ssh_exec_command(g_ssh_ctx, cmd, output, sizeof(output), err_msg, sizeof(err_msg));
-
-    if (success) {
-        MessageBoxW(hWnd, L"地图卸载成功", L"提示", MB_OK);
-        UpdateMapList(hWnd);  // 卸载后更新列表
+    // 确认卸载
+    WCHAR confirmMsg[512];
+    swprintf_s(confirmMsg, L"确定要卸载选中的 %d 个地图吗？", selectedMaps.size());
+    if (MessageBoxW(hWnd, confirmMsg, L"确认卸载", MB_YESNO | MB_ICONQUESTION) != IDYES) {
+        return;
     }
-    else {
-        WCHAR err_w[256];
-        CharToWChar_ser(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
-        MessageBoxW(hWnd, err_w, L"卸载失败", MB_ICONERROR);
+
+    // 记录卸载成功和失败的数量
+    int successCount = 0;
+    int failCount = 0;
+
+    // 逐个卸载选中的地图
+    for (const std::string& mapName : selectedMaps) {
+        // 执行卸载命令
+        char cmd[512];
+        snprintf(cmd, sizeof(cmd), "/home/L4D2_Manager/L4D2_Manager_API.sh uninstall_map %s", mapName.c_str());
+        char output[4096] = { 0 };
+        char err_msg[256] = { 0 };
+        bool success = l4d2_ssh_exec_command(g_ssh_ctx, cmd, output, sizeof(output), err_msg, sizeof(err_msg));
+
+        if (success) {
+            successCount++;
+        }
+        else {
+            failCount++;
+            WCHAR err_w[256];
+            CharToWChar_ser(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
+
+            WCHAR errorMsg[512];
+            swprintf_s(errorMsg, L"卸载地图 %s 失败:\n%s", mapName.c_str(), err_w);
+            MessageBoxW(hWnd, errorMsg, L"卸载失败", MB_ICONERROR);
+        }
     }
+
+    // 显示卸载结果
+    WCHAR resultMsg[512];
+    swprintf_s(resultMsg, L"卸载完成！成功: %d 个, 失败: %d 个", successCount, failCount);
+    MessageBoxW(hWnd, resultMsg, L"结果", MB_OK);
+
+    // 卸载后更新列表
+    UpdateMapList(hWnd);
 }

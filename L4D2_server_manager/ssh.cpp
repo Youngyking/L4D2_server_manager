@@ -43,6 +43,116 @@ static bool convert_crlf_to_lf(const char* input_path, const char* temp_path) {
     return true;
 }
 
+// 读取远程文件内容到缓冲区（内部辅助函数）
+static bool read_remote_file_content(sftp_session sftp, const char* remote_path,
+    char** content, size_t* len,
+    char* err_msg, int err_len) {
+    sftp_file file = sftp_open(sftp, remote_path, O_RDONLY, 0);
+    if (!file) {
+        snprintf(err_msg, err_len, "打开远程文件失败: %s", sftp_get_error(sftp));
+        return false;
+    }
+
+    // 动态缓冲区读取文件内容
+    size_t buffer_size = 4096;
+    *len = 0;
+    *content = (char*)malloc(buffer_size);
+    if (!*content) {
+        snprintf(err_msg, err_len, "内存分配失败");
+        sftp_close(file);
+        return false;
+    }
+
+    ssize_t nread;
+    while ((nread = sftp_read(file, *content + *len, buffer_size - *len)) > 0) {
+        *len += nread;
+        // 缓冲区不足时扩容
+        if (*len >= buffer_size - 1) {
+            buffer_size *= 2;
+            char* new_buf = (char*)realloc(*content, buffer_size);
+            if (!new_buf) {
+                snprintf(err_msg, err_len, "内存重分配失败");
+                free(*content);
+                *content = nullptr;
+                *len = 0;
+                sftp_close(file);
+                return false;
+            }
+            *content = new_buf;
+        }
+    }
+
+    if (nread < 0) {
+        snprintf(err_msg, err_len, "读取远程文件失败: %s", sftp_get_error(sftp));
+        free(*content);
+        *content = nullptr;
+        *len = 0;
+        sftp_close(file);
+        return false;
+    }
+
+    // 调整缓冲区到实际大小
+    char* new_buf = (char*)realloc(*content, *len);
+    if (new_buf) {
+        *content = new_buf;
+    }
+
+    sftp_close(file);
+    return true;
+}
+
+// 处理本地文件（转换CRLF为LF）并读取内容（内部辅助函数）
+static bool process_local_file(const char* local_path, char** content, size_t* len,
+    char* err_msg, int err_len) {
+    FILE* in_file = fopen(local_path, "rb");
+    if (!in_file) {
+        snprintf(err_msg, err_len, "无法打开本地文件: %s", local_path);
+        return false;
+    }
+
+    // 动态缓冲区读取并处理换行符
+    size_t buffer_size = 4096;
+    *len = 0;
+    *content = (char*)malloc(buffer_size);
+    if (!*content) {
+        snprintf(err_msg, err_len, "内存分配失败");
+        fclose(in_file);
+        return false;
+    }
+
+    int c;
+    while ((c = fgetc(in_file)) != EOF) {
+        if (c == '\r') {
+            continue;  // 跳过CR，只保留LF
+        }
+        // 缓冲区不足时扩容
+        if (*len >= buffer_size - 1) {
+            buffer_size *= 2;
+            char* new_buf = (char*)realloc(*content, buffer_size);
+            if (!new_buf) {
+                snprintf(err_msg, err_len, "内存重分配失败");
+                free(*content);
+                *content = nullptr;
+                *len = 0;
+                fclose(in_file);
+                return false;
+            }
+            *content = new_buf;
+        }
+        (*content)[*len] = (char)c;
+        (*len)++;
+    }
+
+    fclose(in_file);
+
+    // 调整缓冲区到实际大小
+    char* new_buf = (char*)realloc(*content, *len);
+    if (new_buf) {
+        *content = new_buf;
+    }
+
+    return true;
+}
 
 // 初始化SSH上下文
 L4D2_SSH_Context* l4d2_ssh_init() {
@@ -193,14 +303,17 @@ bool upload_file_txt(ssh_session session, const char* local_path, const char* re
         return false;
     }
 
-    // 检查远程文件是否已存在
+    // 检查远程文件是否存在，若存在则删除
     sftp_attributes remote_attrs = sftp_stat(sftp, remote_path);
     if (remote_attrs) {
         sftp_attributes_free(remote_attrs);
-        snprintf(err_msg, err_len, "远程文件已存在，跳过上传");
-        sftp_free(sftp);
-        remove(temp_path);
-        return true;
+        // 尝试删除远程文件
+        if (sftp_unlink(sftp, remote_path) != SSH_OK) {
+            snprintf(err_msg, err_len, "删除远程文件失败: %s", sftp_get_error(sftp));
+            sftp_free(sftp);
+            remove(temp_path);
+            return false;
+        }
     }
 
     // 打开临时文件进行读取
@@ -269,13 +382,16 @@ bool upload_file_normal(ssh_session session, const char* local_path, const char*
         return false;
     }
 
-    // 检查远程文件是否已存在
+    // 检查远程文件是否存在，若存在则删除
     sftp_attributes remote_attrs = sftp_stat(sftp, remote_path);
     if (remote_attrs) {
         sftp_attributes_free(remote_attrs);
-        snprintf(err_msg, err_len, "远程文件已存在，跳过上传");
-        sftp_free(sftp);
-        return true;
+        // 尝试删除远程文件
+        if (sftp_unlink(sftp, remote_path) != SSH_OK) {
+            snprintf(err_msg, err_len, "删除远程文件失败: %s", sftp_get_error(sftp));
+            sftp_free(sftp);
+            return false;
+        }
     }
 
     // 打开本地文件（二进制模式）
@@ -297,7 +413,7 @@ bool upload_file_normal(ssh_session session, const char* local_path, const char*
 
     // 传输文件内容（二进制方式，不做任何转换）
     const size_t BUFFER_SIZE = 65536;  // ssh协议对缓冲区大小有限制
-    char *buffer = (char *)malloc(BUFFER_SIZE);
+    char* buffer = (char*)malloc(BUFFER_SIZE);
     size_t nread;
     ssize_t nwrite;
     while ((nread = fread(buffer, 1, BUFFER_SIZE, local_file)) > 0) {
@@ -328,7 +444,7 @@ bool upload_file_normal(ssh_session session, const char* local_path, const char*
     sftp_close(remote_file);
     sftp_free(sftp);
 
-    snprintf(err_msg, err_len, "文件上传成功");
+    snprintf(err_msg, err_len, "上传成功");
     return true;
 }
 
@@ -350,37 +466,100 @@ bool l4d2_ssh_upload_api_script(L4D2_SSH_Context* ctx, char* err_msg, int err_le
         }
     }
 
-    // 上传脚本文件
-    if (!upload_file_txt(ctx->session, local_file, remote_file, err_msg, err_len)) {
-        return false;  // 上传失败直接返回
-    }
-
-    // 新增：授予脚本可执行权限（关键修改）
-    char chmod_cmd[256];
-    snprintf(chmod_cmd, sizeof(chmod_cmd), "chmod +x %s", remote_file);
-    ssh_channel channel = ssh_channel_new(ctx->session);
-    if (!channel) {
-        snprintf(err_msg, err_len, "创建通道失败（授权权限时）");
+    // 初始化SFTP会话用于文件操作
+    sftp_session sftp = sftp_new(ctx->session);
+    if (!sftp) {
+        snprintf(err_msg, err_len, "创建SFTP会话失败: %s", ssh_get_error(ctx->session));
         return false;
     }
 
-    int rc = ssh_channel_open_session(channel);
+    int rc = sftp_init(sftp);
     if (rc != SSH_OK) {
-        snprintf(err_msg, err_len, "打开通道失败（授权权限时）: %s", ssh_get_error(ctx->session));
+        snprintf(err_msg, err_len, "初始化SFTP失败: %s", sftp_get_error(sftp));
+        sftp_free(sftp);
+        return false;
+    }
+
+    bool need_upload = true;
+    char* remote_content = nullptr;
+    size_t remote_len = 0;
+    char* local_content = nullptr;
+    size_t local_len = 0;
+
+    // 检查远程文件是否存在
+    sftp_attributes remote_attrs = sftp_stat(sftp, remote_file);
+    bool file_exists = (remote_attrs != nullptr);
+    if (remote_attrs) {
+        sftp_attributes_free(remote_attrs);
+    }
+
+    // 如果文件存在，读取远程文件内容
+    if (file_exists) {
+        if (!read_remote_file_content(sftp, remote_file, &remote_content, &remote_len, err_msg, err_len)) {
+            // 读取远程文件失败，视为需要上传
+            need_upload = true;
+        }
+        else {
+            // 处理本地文件（转换CRLF为LF）
+            if (!process_local_file(local_file, &local_content, &local_len, err_msg, err_len)) {
+                free(remote_content);
+                sftp_free(sftp);
+                return false;
+            }
+
+            // 对比内容
+            if (remote_len == local_len && memcmp(remote_content, local_content, remote_len) == 0) {
+                need_upload = false;  // 内容相同，不需要上传
+                snprintf(err_msg, err_len, "服务器脚本内容为最新，不需要上传");
+            }
+            else {
+                need_upload = true;   // 内容不同，需要上传
+            }
+        }
+    }
+
+    // 释放内容缓冲区
+    free(remote_content);
+    free(local_content);
+
+    // 需要上传时执行上传操作
+    if (need_upload) {
+        if (!upload_file_txt(ctx->session, local_file, remote_file, err_msg, err_len)) {
+            sftp_free(sftp);
+            return false;  // 上传失败直接返回
+        }
+
+        // 授予脚本可执行权限
+        char chmod_cmd[256];
+        snprintf(chmod_cmd, sizeof(chmod_cmd), "chmod +x %s", remote_file);
+        ssh_channel channel = ssh_channel_new(ctx->session);
+        if (!channel) {
+            snprintf(err_msg, err_len, "创建通道失败（授权权限时）");
+            sftp_free(sftp);
+            return false;
+        }
+
+        rc = ssh_channel_open_session(channel);
+        if (rc != SSH_OK) {
+            snprintf(err_msg, err_len, "打开通道失败（授权权限时）: %s", ssh_get_error(ctx->session));
+            ssh_channel_free(channel);
+            sftp_free(sftp);
+            return false;
+        }
+
+        rc = ssh_channel_request_exec(channel, chmod_cmd);
+        ssh_channel_close(channel);
         ssh_channel_free(channel);
-        return false;
+        if (rc != SSH_OK) {
+            snprintf(err_msg, err_len, "授予执行权限失败: %s", ssh_get_error(ctx->session));
+            sftp_free(sftp);
+            return false;
+        }
+
+        snprintf(err_msg, err_len, "服务器脚本不存在或不为最新，上传/更新成功");
     }
-
-    rc = ssh_channel_request_exec(channel, chmod_cmd);
-    ssh_channel_close(channel);
-    ssh_channel_free(channel);
-    if (rc != SSH_OK) {
-        snprintf(err_msg, err_len, "授予执行权限失败: %s", ssh_get_error(ctx->session));
-        return false;
-    }
-
-    snprintf(err_msg, err_len, "脚本上传并授予执行权限成功");
-
+    // 释放SFTP会话
+    sftp_free(sftp);
     return true;
 }
 

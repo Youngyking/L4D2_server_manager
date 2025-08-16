@@ -80,7 +80,7 @@ DWORD WINAPI HandleConnectRequest(LPVOID param) {
 
     if (success) {
         // 连接成功后上传API脚本
-        AddLog(hWnd, L"正在检查并上传API脚本...");
+        AddLog(hWnd, L"正在检查API脚本是否安装为最新...");
         if (l4d2_ssh_upload_api_script(g_ssh_ctx, err_msg, sizeof(err_msg))) {
             CharToWChar(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
             AddLog(hWnd, err_msg_w);

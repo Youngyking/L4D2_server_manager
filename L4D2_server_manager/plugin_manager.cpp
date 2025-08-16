@@ -21,11 +21,9 @@
 #define IDC_AVAILABLE_LIST  1001  // 可用插件列表
 #define IDC_INSTALLED_LIST  1002  // 已安装插件列表
 #define IDC_UPLOAD_BTN      1003  // 上传插件按钮
-#define IDC_INSTALL_EDIT    1004  // 安装插件输入框
 #define IDC_INSTALL_BTN     1005  // 安装插件按钮
 #define IDC_UNINSTALL_EDIT  1006  // 卸载插件输入框
 #define IDC_UNINSTALL_BTN   1007  // 卸载插件按钮
-#define IDC_DELETE_EDIT     1008  // 删除可用插件输入框
 #define IDC_DELETE_BTN      1009  // 删除可用插件按钮
 
 // 全局SSH上下文
@@ -63,6 +61,23 @@ void OnDeleteAvailablePlugin(HWND hWnd);
 // 递归上传目录
 bool UploadDirectory(HWND hWnd, const WCHAR* local_dir, const std::string& remote_dir);
 
+// 获取列表中勾选的项
+std::vector<std::wstring> GetCheckedItems(HWND hList) {
+    std::vector<std::wstring> checkedItems;
+    int itemCount = ListView_GetItemCount(hList);
+
+    for (int i = 0; i < itemCount; ++i) {
+        // 检查项是否被勾选
+        if (ListView_GetCheckState(hList, i)) {
+            WCHAR itemText[256] = { 0 };
+            ListView_GetItemText(hList, i, 0, itemText, sizeof(itemText) / sizeof(WCHAR));
+            checkedItems.push_back(std::wstring(itemText));
+        }
+    }
+
+    return checkedItems;
+}
+
 // 插件管理窗口创建函数
 DWORD WINAPI HandleManagePlugin(LPVOID param) {
     HWND hParent = (HWND)param;
@@ -94,7 +109,7 @@ DWORD WINAPI HandleManagePlugin(LPVOID param) {
         PLUGIN_WINDOW_CLASS,
         L"插件管理",
         WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME & ~WS_MAXIMIZEBOX,
-        CW_USEDEFAULT, CW_USEDEFAULT, 800, 650,  // 增加窗口高度以容纳新控件
+        CW_USEDEFAULT, CW_USEDEFAULT, 800, 550,  // 调整窗口高度
         hParent,
         NULL,
         hInst,
@@ -122,13 +137,15 @@ DWORD WINAPI HandleManagePlugin(LPVOID param) {
 
 // 创建插件管理窗口控件
 void CreatePluginWindowControls(HWND hWnd, HINSTANCE hInst) {
-    // 1. 可用插件列表（左栏）
+    // 1. 可用插件列表（左栏）- 支持勾选和多选
     HWND hAvailableList = CreateWindowW(
         WC_LISTVIEWW, L"",
-        WS_CHILD | WS_VISIBLE | WS_BORDER | LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS,
+        WS_CHILD | WS_VISIBLE | WS_BORDER | LVS_REPORT | LVS_SHOWSELALWAYS,
         20, 20, 350, 400,
         hWnd, (HMENU)IDC_AVAILABLE_LIST, hInst, NULL
     );
+    // 设置扩展样式：支持勾选框
+    ListView_SetExtendedListViewStyle(hAvailableList, LVS_EX_CHECKBOXES);
 
     // 设置列表头
     LVCOLUMNW lvc = { 0 };
@@ -137,13 +154,15 @@ void CreatePluginWindowControls(HWND hWnd, HINSTANCE hInst) {
     lvc.pszText = const_cast<LPWSTR>(L"可用插件");
     ListView_InsertColumn(hAvailableList, 0, &lvc);
 
-    // 2. 已安装插件列表（右栏）
+    // 2. 已安装插件列表（右栏）- 支持勾选和多选
     HWND hInstalledList = CreateWindowW(
         WC_LISTVIEWW, L"",
-        WS_CHILD | WS_VISIBLE | WS_BORDER | LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS,
+        WS_CHILD | WS_VISIBLE | WS_BORDER | LVS_REPORT | LVS_SHOWSELALWAYS,
         430, 20, 350, 400,
         hWnd, (HMENU)IDC_INSTALLED_LIST, hInst, NULL
     );
+    // 设置扩展样式：支持勾选框
+    ListView_SetExtendedListViewStyle(hInstalledList, LVS_EX_CHECKBOXES);
 
     lvc.pszText = const_cast<LPWSTR>(L"已安装插件");
     ListView_InsertColumn(hInstalledList, 0, &lvc);
@@ -157,48 +176,34 @@ void CreatePluginWindowControls(HWND hWnd, HINSTANCE hInst) {
         hWnd, (HMENU)IDC_UPLOAD_BTN, hInst, NULL
     );
 
-    // 安装插件输入框和按钮
+    // 安装插件按钮（移除输入框，调整位置）
     CreateWindowW(
-        L"EDIT", L"输入插件名",
-        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-        200, 450, 150, 30,
-        hWnd, (HMENU)IDC_INSTALL_EDIT, hInst, NULL
-    );
-
-    CreateWindowW(
-        L"BUTTON", L"安装插件",
+        L"BUTTON", L"安装选中插件",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        370, 450, 100, 30,
+        200, 450, 150, 30,
         hWnd, (HMENU)IDC_INSTALL_BTN, hInst, NULL
     );
 
-    // 卸载插件输入框和按钮
-    CreateWindowW(
-        L"EDIT", L"输入插件名",
-        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-        500, 450, 150, 30,
-        hWnd, (HMENU)IDC_UNINSTALL_EDIT, hInst, NULL
-    );
+    //// 卸载插件输入框和按钮（保留输入框以便手动输入，也支持勾选）
+    //CreateWindowW(
+    //    L"EDIT", L"输入插件名或勾选列表",
+    //    WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
+    //    370, 450, 150, 30,
+    //    hWnd, (HMENU)IDC_UNINSTALL_EDIT, hInst, NULL
+    //);
 
     CreateWindowW(
-        L"BUTTON", L"卸载插件",
+        L"BUTTON", L"卸载选中插件",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        670, 450, 100, 30,
+        370, 450, 150, 30,
         hWnd, (HMENU)IDC_UNINSTALL_BTN, hInst, NULL
     );
 
-    // 新增：删除可用插件输入框和按钮（放在上传插件按钮下方）
+    // 删除可用插件按钮（移除输入框，调整位置）
     CreateWindowW(
-        L"EDIT", L"输入要删除的可用插件名",
-        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-        20, 500, 150, 30,
-        hWnd, (HMENU)IDC_DELETE_EDIT, hInst, NULL
-    );
-
-    CreateWindowW(
-        L"BUTTON", L"删除可用插件",
+        L"BUTTON", L"删除选中可用插件",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        190, 500, 120, 30,
+        610, 450, 150, 30,
         hWnd, (HMENU)IDC_DELETE_BTN, hInst, NULL
     );
 }
@@ -230,7 +235,7 @@ LRESULT CALLBACK PluginWindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
         case IDC_UNINSTALL_BTN:
             OnUninstallPlugin(hWnd);
             break;
-        case IDC_DELETE_BTN:  // 新增：处理删除可用插件按钮点击
+        case IDC_DELETE_BTN:
             OnDeleteAvailablePlugin(hWnd);
             break;
         }
@@ -497,113 +502,170 @@ static bool UploadDirectory(HWND hWnd, const WCHAR* local_dir, const std::string
     return result;
 }
 
-// 安装插件处理函数
+// 安装插件处理函数（批量安装勾选的插件）
 void OnInstallPlugin(HWND hWnd) {
     if (!g_ssh_ctx || !g_ssh_ctx->is_connected) {
         MessageBoxW(hWnd, L"未连接到服务器", L"错误", MB_ICONERROR);
         return;
     }
 
-    // 获取输入的插件名
-    WCHAR plugin_name_w[256];
-    GetWindowTextW(GetDlgItem(hWnd, IDC_INSTALL_EDIT), plugin_name_w, sizeof(plugin_name_w) / sizeof(WCHAR));
-    if (wcscmp(plugin_name_w, L"") == 0) {
-        MessageBoxW(hWnd, L"请输入插件名称", L"提示", MB_OK);
+    // 获取可用列表中勾选的插件
+    HWND hAvailableList = GetDlgItem(hWnd, IDC_AVAILABLE_LIST);
+    std::vector<std::wstring> checkedPlugins = GetCheckedItems(hAvailableList);
+
+    if (checkedPlugins.empty()) {
+        MessageBoxW(hWnd, L"请先勾选要安装的插件", L"提示", MB_OK);
         return;
     }
 
-    // 转换为多字节
-    char plugin_name[256];
-    WCharToChar_ser(plugin_name_w, plugin_name, sizeof(plugin_name));
+    // 批量安装勾选的插件
+    int successCount = 0;
+    for (const auto& pluginW : checkedPlugins) {
+        // 转换为多字节
+        char pluginName[256];
+        WCharToChar_ser(pluginW.c_str(), pluginName, sizeof(pluginName));
 
-    // 执行安装命令
-    char cmd[512];
-    snprintf(cmd, sizeof(cmd), "/home/L4D2_Manager/L4D2_Manager_API.sh install_plugin %s", plugin_name);
-    char output[4096] = { 0 };
-    char err_msg[256] = { 0 };
-    bool success = l4d2_ssh_exec_command(g_ssh_ctx, cmd, output, sizeof(output), err_msg, sizeof(err_msg));
+        // 执行安装命令
+        char cmd[512];
+        snprintf(cmd, sizeof(cmd), "/home/L4D2_Manager/L4D2_Manager_API.sh install_plugin %s", pluginName);
+        char output[4096] = { 0 };
+        char err_msg[256] = { 0 };
+        bool success = l4d2_ssh_exec_command(g_ssh_ctx, cmd, output, sizeof(output), err_msg, sizeof(err_msg));
 
-    if (success) {
-        MessageBoxW(hWnd, L"插件安装成功", L"提示", MB_OK);
-        UpdatePluginLists(hWnd);  // 安装后更新列表
+        if (success) {
+            successCount++;
+        }
+        else {
+            WCHAR errW[256], pluginNameW[256];
+            CharToWChar_ser(err_msg, errW, sizeof(errW) / sizeof(WCHAR));
+            CharToWChar_ser(pluginName, pluginNameW, sizeof(pluginNameW) / sizeof(WCHAR));
+
+            WCHAR msg[512];
+            swprintf_s(msg, L"安装插件 %s 失败: %s", pluginNameW, errW);
+            MessageBoxW(hWnd, msg, L"安装失败", MB_ICONWARNING);
+        }
     }
-    else {
-        WCHAR err_w[256];
-        CharToWChar_ser(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
-        MessageBoxW(hWnd, err_w, L"安装失败", MB_ICONERROR);
-    }
+
+    // 显示安装结果
+    WCHAR resultMsg[256];
+    swprintf_s(resultMsg, L"共%d个插件，成功安装%d个", checkedPlugins.size(), successCount);
+    MessageBoxW(hWnd, resultMsg, L"安装完成", MB_OK);
+    UpdatePluginLists(hWnd);  // 安装后更新列表
 }
 
-// 卸载插件处理函数
+// 卸载插件处理函数（支持勾选和手动输入）
 void OnUninstallPlugin(HWND hWnd) {
     if (!g_ssh_ctx || !g_ssh_ctx->is_connected) {
         MessageBoxW(hWnd, L"未连接到服务器", L"错误", MB_ICONERROR);
         return;
     }
 
-    // 获取输入的插件名
-    WCHAR plugin_name_w[256];
-    GetWindowTextW(GetDlgItem(hWnd, IDC_UNINSTALL_EDIT), plugin_name_w, sizeof(plugin_name_w) / sizeof(WCHAR));
-    if (wcscmp(plugin_name_w, L"") == 0) {
-        MessageBoxW(hWnd, L"请输入插件名称", L"提示", MB_OK);
-        return;
+    // 获取已安装列表中勾选的插件
+    HWND hInstalledList = GetDlgItem(hWnd, IDC_INSTALLED_LIST);
+    std::vector<std::wstring> checkedPlugins = GetCheckedItems(hInstalledList);
+
+    // 如果没有勾选，则尝试从输入框获取
+    if (checkedPlugins.empty()) {
+        WCHAR pluginNameW[256];
+        GetWindowTextW(GetDlgItem(hWnd, IDC_UNINSTALL_EDIT), pluginNameW, sizeof(pluginNameW) / sizeof(WCHAR));
+        if (wcscmp(pluginNameW, L"") != 0) {
+            checkedPlugins.push_back(std::wstring(pluginNameW));
+        }
+        else {
+            MessageBoxW(hWnd, L"请先勾选或输入要卸载的插件", L"提示", MB_OK);
+            return;
+        }
     }
 
-    // 转换为多字节
-    char plugin_name[256];
-    WCharToChar_ser(plugin_name_w, plugin_name, sizeof(plugin_name));
+    // 批量卸载勾选的插件
+    int successCount = 0;
+    for (const auto& pluginW : checkedPlugins) {
+        // 转换为多字节
+        char pluginName[256];
+        WCharToChar_ser(pluginW.c_str(), pluginName, sizeof(pluginName));
 
-    // 执行卸载命令
-    char cmd[512];
-    snprintf(cmd, sizeof(cmd), "/home/L4D2_Manager/L4D2_Manager_API.sh uninstall_plugin %s", plugin_name);
-    char output[4096] = { 0 };
-    char err_msg[256] = { 0 };
-    bool success = l4d2_ssh_exec_command(g_ssh_ctx, cmd, output, sizeof(output), err_msg, sizeof(err_msg));
+        // 执行卸载命令
+        char cmd[512];
+        snprintf(cmd, sizeof(cmd), "/home/L4D2_Manager/L4D2_Manager_API.sh uninstall_plugin %s", pluginName);
+        char output[4096] = { 0 };
+        char err_msg[256] = { 0 };
+        bool success = l4d2_ssh_exec_command(g_ssh_ctx, cmd, output, sizeof(output), err_msg, sizeof(err_msg));
 
-    if (success) {
-        MessageBoxW(hWnd, L"插件卸载成功", L"提示", MB_OK);
-        UpdatePluginLists(hWnd);  // 卸载后更新列表
+        if (success) {
+            successCount++;
+        }
+        else {
+            WCHAR errW[256], pluginNameW[256];
+            CharToWChar_ser(err_msg, errW, sizeof(errW) / sizeof(WCHAR));
+            CharToWChar_ser(pluginName, pluginNameW, sizeof(pluginNameW) / sizeof(WCHAR));
+
+            WCHAR msg[512];
+            swprintf_s(msg, L"卸载插件 %s 失败: %s", pluginNameW, errW);
+            MessageBoxW(hWnd, msg, L"卸载失败", MB_ICONWARNING);
+        }
     }
-    else {
-        WCHAR err_w[256];
-        CharToWChar_ser(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
-        MessageBoxW(hWnd, err_w, L"卸载失败", MB_ICONERROR);
-    }
+
+    // 显示卸载结果
+    WCHAR resultMsg[256];
+    swprintf_s(resultMsg, L"共%d个插件，成功卸载%d个", checkedPlugins.size(), successCount);
+    MessageBoxW(hWnd, resultMsg, L"卸载完成", MB_OK);
+    UpdatePluginLists(hWnd);  // 卸载后更新列表
 }
 
-// 新增：删除可用插件处理函数
+// 删除可用插件处理函数（批量删除勾选的插件）
 void OnDeleteAvailablePlugin(HWND hWnd) {
     if (!g_ssh_ctx || !g_ssh_ctx->is_connected) {
         MessageBoxW(hWnd, L"未连接到服务器", L"错误", MB_ICONERROR);
         return;
     }
 
-    // 获取输入的插件名
-    WCHAR plugin_name_w[256];
-    GetWindowTextW(GetDlgItem(hWnd, IDC_DELETE_EDIT), plugin_name_w, sizeof(plugin_name_w) / sizeof(WCHAR));
-    if (wcscmp(plugin_name_w, L"") == 0) {
-        MessageBoxW(hWnd, L"请输入要删除的可用插件名称", L"提示", MB_OK);
+    // 获取可用列表中勾选的插件
+    HWND hAvailableList = GetDlgItem(hWnd, IDC_AVAILABLE_LIST);
+    std::vector<std::wstring> checkedPlugins = GetCheckedItems(hAvailableList);
+
+    if (checkedPlugins.empty()) {
+        MessageBoxW(hWnd, L"请先勾选要删除的可用插件", L"提示", MB_OK);
         return;
     }
 
-    // 转换为多字节
-    char plugin_name[256];
-    WCharToChar_ser(plugin_name_w, plugin_name, sizeof(plugin_name));
-
-    // 构建删除命令（删除Available_Plugins目录下的插件文件夹）
-    char cmd[512];
-    snprintf(cmd, sizeof(cmd), "rm -rf /home/L4D2_Manager/Available_Plugins/%s", plugin_name);
-    char output[4096] = { 0 };
-    char err_msg[256] = { 0 };
-    bool success = l4d2_ssh_exec_command(g_ssh_ctx, cmd, output, sizeof(output), err_msg, sizeof(err_msg));
-
-    if (success) {
-        MessageBoxW(hWnd, L"可用插件删除成功", L"提示", MB_OK);
-        UpdatePluginLists(hWnd);  // 删除后更新列表
+    // 确认删除
+    WCHAR confirmMsg[256];
+    swprintf_s(confirmMsg, L"确定要删除选中的%d个插件吗？", checkedPlugins.size());
+    if (MessageBoxW(hWnd, confirmMsg, L"确认删除", MB_YESNO | MB_ICONWARNING) != IDYES) {
+        return;
     }
-    else {
-        WCHAR err_w[256];
-        CharToWChar_ser(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
-        MessageBoxW(hWnd, err_w, L"删除失败", MB_ICONERROR);
+
+    // 批量删除勾选的插件
+    int successCount = 0;
+    for (const auto& pluginW : checkedPlugins) {
+        // 转换为多字节
+        char pluginName[256];
+        WCharToChar_ser(pluginW.c_str(), pluginName, sizeof(pluginName));
+
+        // 执行删除命令
+        char cmd[512];
+        snprintf(cmd, sizeof(cmd), "rm -rf /home/L4D2_Manager/Available_Plugins/%s", pluginName);
+        char output[4096] = { 0 };
+        char err_msg[256] = { 0 };
+        bool success = l4d2_ssh_exec_command(g_ssh_ctx, cmd, output, sizeof(output), err_msg, sizeof(err_msg));
+
+        if (success) {
+            successCount++;
+        }
+        else {
+            WCHAR errW[256], pluginNameW[256];
+            CharToWChar_ser(err_msg, errW, sizeof(errW) / sizeof(WCHAR));
+            CharToWChar_ser(pluginName, pluginNameW, sizeof(pluginNameW) / sizeof(WCHAR));
+
+            WCHAR msg[512];
+            swprintf_s(msg, L"删除插件 %s 失败: %s", pluginNameW, errW);
+            MessageBoxW(hWnd, msg, L"删除失败", MB_ICONWARNING);
+        }
     }
+
+    // 显示删除结果
+    WCHAR resultMsg[256];
+    swprintf_s(resultMsg, L"共%d个插件，成功删除%d个", checkedPlugins.size(), successCount);
+    MessageBoxW(hWnd, resultMsg, L"删除完成", MB_OK);
+    UpdatePluginLists(hWnd);  // 删除后更新列表
 }

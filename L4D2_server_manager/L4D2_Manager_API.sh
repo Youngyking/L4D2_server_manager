@@ -375,9 +375,10 @@ function Install-Map() {
         exit 1
     fi
     
-    # 记录安装的文件到map_install.txt
+    # 记录安装的文件到map_install.txt（移除地图名称前缀）
     echo "正在记录安装的文件..."
-    (cd "$mapTmpDir" && find . -type f | sed "s|^\./|$mapName|") | while read -r file; do
+    # 修改sed命令，只保留相对路径，不添加地图名称前缀
+    (cd "$mapTmpDir" && find . -type f | sed "s|^\./||") | while read -r file; do
         echo "$mapName|$file" >> "$mapInstallFile"
     done
     
@@ -386,6 +387,7 @@ function Install-Map() {
     
     echo "地图 '$mapName' 安装成功"
 }
+
 
 function Uninstall-Map() {
     local mapName="$1"
@@ -405,8 +407,12 @@ function Uninstall-Map() {
         if [ -f "$targetFile" ]; then
             rm -f "$targetFile"
             echo "已删除: $targetFile"
+        else
+            # 当文件不存在时打印提示信息
+            echo "警告: 未找到地图文件 '$targetFile'，可能已被删除或路径错误"
         fi
     done
+
     
     # 从安装记录中移除该地图的信息
     grep -v "^$mapName|" "$mapInstallFile" > "$tempFile"

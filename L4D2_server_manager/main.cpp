@@ -14,8 +14,10 @@
 #include "resource.h"
 #include "plugin_manager.h"
 #include "map_manager.h"
+#include "config.h"
 #include <fcntl.h>
 #include <string.h>
+#include <string>
 
 #define MAX_LOADSTRING 100
 
@@ -32,6 +34,44 @@ INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 
 // 全局SSH上下文实例
 L4D2_SSH_Context* g_ssh_ctx = NULL;
+
+// 对话框回调函数
+INT_PTR CALLBACK RemotePathDialogProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
+    static std::string* newPath;
+
+    switch (msg) {
+    case WM_INITDIALOG: {
+        // 初始化对话框，显示当前路径
+        newPath = (std::string*)lParam;
+        std::string currentPath = GetRemoteRootPath();
+
+        WCHAR currentPathW[256] = { 0 };
+        MultiByteToWideChar(CP_ACP, 0, currentPath.c_str(), -1, currentPathW, sizeof(currentPathW) / sizeof(WCHAR));
+        SetDlgItemTextW(hDlg, IDC_PATH_EDIT, currentPathW);
+        return TRUE;
+    }
+
+    case WM_COMMAND:
+        if (LOWORD(wParam) == IDOK) {
+            // 用户确认，获取输入的路径
+            WCHAR pathW[256] = { 0 };
+            GetDlgItemTextW(hDlg, IDC_PATH_EDIT, pathW, sizeof(pathW) / sizeof(WCHAR));
+
+            char pathA[256] = { 0 };
+            WideCharToMultiByte(CP_ACP, 0, pathW, -1, pathA, sizeof(pathA), NULL, NULL);
+            *newPath = std::string(pathA);
+
+            EndDialog(hDlg, IDOK);
+            return TRUE;
+        }
+        else if (LOWORD(wParam) == IDCANCEL) {
+            EndDialog(hDlg, IDCANCEL);
+            return TRUE;
+        }
+        break;
+    }
+    return FALSE;
+}
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     _In_opt_ HINSTANCE hPrevInstance,
@@ -191,6 +231,26 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 CreateThread(NULL, 0, HandleManageMaps, (LPVOID)hWnd, 0, NULL);
             }
             break;
+        case ID_CHANGE_REMOTE_PATH: {
+            std::string newPath;
+            // 创建对话框
+            INT_PTR result = DialogBoxParamW(
+                hInst,
+                MAKEINTRESOURCE(IDD_REMOTE_PATH_DIALOG),
+                hWnd,
+                RemotePathDialogProc,
+                (LPARAM)&newPath
+            );
+
+            if (result == IDOK && !newPath.empty()) {
+                // 保存新路径
+                SaveRemoteRootPath(newPath);
+
+                // 提示用户重新连接
+                MessageBoxW(hWnd, L"远程项目路径已更新，请重新连接服务器使设置生效", L"提示", MB_OK | MB_ICONINFORMATION);
+            }
+            break;
+        }
         default:
             return DefWindowProc(hWnd, message, wParam, lParam);
         }

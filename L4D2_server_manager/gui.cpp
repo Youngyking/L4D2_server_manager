@@ -10,11 +10,13 @@
 #pragma comment(lib, "ws2_32.lib")  // 链接 Winsock 2.0 库
 #include <fcntl.h>
 #include <string.h>
+#include <string>
 #include "cJSON.h"
 #include "framework.h"
 #include "resource.h"
 #include "gui.h"
 #include "ssh.h"
+#include "config.h"
 
 // 初始化通用控件（ListView需要）
 void InitCommonControlsExWrapper() {
@@ -197,6 +199,11 @@ void CreateAllControls(HWND hWnd, HINSTANCE hInst) {
         WS_CHILD | WS_VISIBLE | WS_BORDER | WS_VSCROLL | ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY,
         520, 400, 450, 120, hWnd, (HMENU)IDC_LOG_VIEW, hInst, NULL);
 
+    HMENU hMenu = CreateMenu();
+    HMENU hFileMenu = CreatePopupMenu();
+    AppendMenu(hFileMenu, MF_STRING, ID_CHANGE_REMOTE_PATH, L"更改远程项目部署位置");
+    AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hFileMenu, L"文件");
+    SetMenu(hWnd, hMenu);
 }
 
 // 更新连接状态

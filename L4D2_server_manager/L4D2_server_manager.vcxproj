@@ -134,6 +134,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="cJSON.h" />
+    <ClInclude Include="config.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="gui.h" />
     <ClInclude Include="manager.h" />
@@ -144,6 +145,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="cJSON.cpp" />
+    <ClCompile Include="config.cpp" />
     <ClCompile Include="gui.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="manager.cpp" />

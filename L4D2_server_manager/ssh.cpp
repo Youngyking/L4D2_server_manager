@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <string>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -17,6 +18,10 @@
 #include <libssh/libssh.h>
 #include <libssh/sftp.h>
 #include "ssh.h"
+#include "config.h"
+
+// 声明外部函数
+std::string GetRemoteRootPath();
 
 //doc_to_unix
 static bool convert_crlf_to_lf(const char* input_path, const char* temp_path) {
@@ -455,13 +460,17 @@ bool l4d2_ssh_upload_api_script(L4D2_SSH_Context* ctx, char* err_msg, int err_le
         return false;
     }
 
-    const char* remote_dir = "/home/L4D2_Manager";
-    const char* remote_file = "/home/L4D2_Manager/L4D2_Manager_API.sh";
+    // 获取远程根目录路径
+    std::string remote_root = GetRemoteRootPath();
+
+    // 构建远程目录和文件路径
+    std::string remote_dir = remote_root;
+    std::string remote_file = remote_root + "/L4D2_Manager_API.sh";
     const char* local_file = "scripts/L4D2_Manager_API.sh";  // 本地脚本路径
 
     // 检查并创建远程目录
-    if (!check_remote_dir(ctx->session, remote_dir, err_msg, err_len)) {
-        if (!create_remote_dir(ctx->session, remote_dir, err_msg, err_len)) {
+    if (!check_remote_dir(ctx->session, remote_dir.c_str(), err_msg, err_len)) {
+        if (!create_remote_dir(ctx->session, remote_dir.c_str(), err_msg, err_len)) {
             return false;
         }
     }
@@ -487,7 +496,7 @@ bool l4d2_ssh_upload_api_script(L4D2_SSH_Context* ctx, char* err_msg, int err_le
     size_t local_len = 0;
 
     // 检查远程文件是否存在
-    sftp_attributes remote_attrs = sftp_stat(sftp, remote_file);
+    sftp_attributes remote_attrs = sftp_stat(sftp, remote_file.c_str());
     bool file_exists = (remote_attrs != nullptr);
     if (remote_attrs) {
         sftp_attributes_free(remote_attrs);
@@ -495,7 +504,7 @@ bool l4d2_ssh_upload_api_script(L4D2_SSH_Context* ctx, char* err_msg, int err_le
 
     // 如果文件存在，读取远程文件内容
     if (file_exists) {
-        if (!read_remote_file_content(sftp, remote_file, &remote_content, &remote_len, err_msg, err_len)) {
+        if (!read_remote_file_content(sftp, remote_file.c_str(), &remote_content, &remote_len, err_msg, err_len)) {
             // 读取远程文件失败，视为需要上传
             need_upload = true;
         }
@@ -524,14 +533,14 @@ bool l4d2_ssh_upload_api_script(L4D2_SSH_Context* ctx, char* err_msg, int err_le
 
     // 需要上传时执行上传操作
     if (need_upload) {
-        if (!upload_file_txt(ctx->session, local_file, remote_file, err_msg, err_len)) {
+        if (!upload_file_txt(ctx->session, local_file, remote_file.c_str(), err_msg, err_len)) {
             sftp_free(sftp);
             return false;  // 上传失败直接返回
         }
 
         // 授予脚本可执行权限
-        char chmod_cmd[256];
-        snprintf(chmod_cmd, sizeof(chmod_cmd), "chmod +x %s", remote_file);
+        char chmod_cmd[512];  // 增大缓冲区防止路径过长
+        snprintf(chmod_cmd, sizeof(chmod_cmd), "chmod +x %s", remote_file.c_str());
         ssh_channel channel = ssh_channel_new(ctx->session);
         if (!channel) {
             snprintf(err_msg, err_len, "创建通道失败（授权权限时）");

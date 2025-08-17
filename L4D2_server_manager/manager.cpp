@@ -15,6 +15,7 @@
 #include "cJSON.h"
 #include "gui.h"
 #include "resource.h"
+#include "config.h"
 #include <stdlib.h>
 #include <wchar.h>
 #include <fcntl.h>
@@ -89,9 +90,12 @@ DWORD WINAPI HandleConnectRequest(LPVOID param) {
             AddLog(hWnd, L"正在检查并安装脚本依赖...");
             char dep_output[4096] = { 0 };
             WCHAR output_w[4096];
+            // 获取配置的远程路径
+            std::string remoteRoot = GetRemoteRootPath();
+            std::string command = remoteRoot + "/L4D2_Manager_API.sh check_deps";
             bool dep_success = l4d2_ssh_exec_command(
                 g_ssh_ctx,
-                "bash /home/L4D2_Manager/L4D2_Manager_API.sh check_deps",
+                command.c_str(),
                 dep_output, sizeof(dep_output),
                 err_msg, sizeof(err_msg)
             );
@@ -165,15 +169,15 @@ DWORD WINAPI HandleStartInstance(LPVOID param) {
     swprintf_s(logMsg, L"正在启动实例: %ls（端口: %s）...", instanceNameW, port_w);
     AddLog(hWnd, logMsg);
 
-    // 构造SSH命令（使用start_instance动作和实例名称，修正原命令错误）
-    char cmd[256];
-    snprintf(cmd, sizeof(cmd), "/home/L4D2_Manager/L4D2_Manager_API.sh start_instance %s", instanceName.c_str());
+    // 构造SSH命令（使用start_instance动作和实例名称）
+    std::string remoteRoot = GetRemoteRootPath();
+    std::string command = remoteRoot + "/L4D2_Manager_API.sh start_instance " + instanceName;
 
     // 执行命令并处理结果
     char output[4096] = { 0 }, err_msg[256] = { 0 };
     bool success = l4d2_ssh_exec_command(
         g_ssh_ctx,
-        cmd,
+        command.c_str(),
         output, sizeof(output),
         err_msg, sizeof(err_msg)
     );
@@ -239,14 +243,14 @@ DWORD WINAPI HandleStopInstance(LPVOID param) {
     AddLog(hWnd, logMsg);
 
     // 构造SSH命令
-    char cmd[256];
-    snprintf(cmd, sizeof(cmd), "/home/L4D2_Manager/L4D2_Manager_API.sh stop_instance %s", instanceName.c_str());
+    std::string remoteRoot = GetRemoteRootPath();
+    std::string command = remoteRoot + "/L4D2_Manager_API.sh stop_instance " + instanceName;
 
     // 执行命令并处理结果
     char output[4096] = { 0 }, err_msg[256] = { 0 };
     bool success = l4d2_ssh_exec_command(
         g_ssh_ctx,
-        cmd,
+        command.c_str(),
         output, sizeof(output),
         err_msg, sizeof(err_msg)
     );
@@ -292,9 +296,14 @@ DWORD WINAPI HandleDeployServer(LPVOID param) {
 
     AddLog(hWnd, L"开始部署/更新服务器(已部署则检查更新，若可更新则需要耗费一定时间，取决于你服务器带宽)...");
     char output[4096] = { 0 }, err_msg[256] = { 0 };
+
+    // 获取配置的远程路径
+    std::string remoteRoot = GetRemoteRootPath();
+    std::string command = remoteRoot + "/L4D2_Manager_API.sh deploy_server";
+
     bool success = l4d2_ssh_exec_command(
         g_ssh_ctx,
-        "/home/L4D2_Manager/L4D2_Manager_API.sh deploy_server",
+        command.c_str(),
         output, sizeof(output),
         err_msg, sizeof(err_msg)
     );
@@ -321,9 +330,14 @@ DWORD WINAPI HandleGetStatus(LPVOID param) {
     if (!g_ssh_ctx || !g_ssh_ctx->is_connected) return 0;
 
     char output[1024] = { 0 }, err_msg[256] = { 0 };
+
+    // 获取配置的远程路径
+    std::string remoteRoot = GetRemoteRootPath();
+    std::string command = remoteRoot + "/L4D2_Manager_API.sh get_status";
+
     bool success = l4d2_ssh_exec_command(
         g_ssh_ctx,
-        "/home/L4D2_Manager/L4D2_Manager_API.sh get_status",
+        command.c_str(),
         output, sizeof(output),
         err_msg, sizeof(err_msg)
     );
@@ -363,9 +377,14 @@ DWORD WINAPI HandleGetInstances(LPVOID param) {
     if (!g_ssh_ctx || !g_ssh_ctx->is_connected) return 0;
 
     char output[4096] = { 0 }, err_msg[256] = { 0 };
+
+    // 获取配置的远程路径
+    std::string remoteRoot = GetRemoteRootPath();
+    std::string command = remoteRoot + "/L4D2_Manager_API.sh get_instances";
+
     bool success = l4d2_ssh_exec_command(
         g_ssh_ctx,
-        "/home/L4D2_Manager/L4D2_Manager_API.sh get_instances",
+        command.c_str(),
         output, sizeof(output),
         err_msg, sizeof(err_msg)
     );
@@ -418,14 +437,15 @@ DWORD WINAPI HandleUploadSourceMod(LPVOID param) {
         return 0;
     }
 
-    // 远程目录
-    const char* remote_dir = "/home/L4D2_Manager/SourceMod_Installers";
+    // 获取配置的远程路径
+    std::string remoteRoot = GetRemoteRootPath();
+    std::string remote_dir = remoteRoot + "/SourceMod_Installers";
     char err_msg[256] = { 0 };
 
     // 检查并创建远程目录
-    if (!check_remote_dir(g_ssh_ctx->session, remote_dir, err_msg, sizeof(err_msg))) {
+    if (!check_remote_dir(g_ssh_ctx->session, remote_dir.c_str(), err_msg, sizeof(err_msg))) {
         AddLog(hWnd, L"远程目录不存在，尝试创建...");
-        if (!create_remote_dir(g_ssh_ctx->session, remote_dir, err_msg, sizeof(err_msg))) {
+        if (!create_remote_dir(g_ssh_ctx->session, remote_dir.c_str(), err_msg, sizeof(err_msg))) {
             WCHAR err_w[256];
             CharToWChar(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
             AddLog(hWnd, err_w);
@@ -467,7 +487,7 @@ DWORD WINAPI HandleUploadSourceMod(LPVOID param) {
 
     // 构建远程路径
     char remote_path[256];
-    snprintf(remote_path, sizeof(remote_path), "%s/%s", remote_dir, file_name);
+    snprintf(remote_path, sizeof(remote_path), "%s/%s", remote_dir.c_str(), file_name);
 
     // 上传文件
     AddLog(hWnd, L"开始上传SourceMod安装包，若文件较大则请耐心等候...");
@@ -494,14 +514,15 @@ DWORD WINAPI HandleUploadMetaMod(LPVOID param) {
         return 0;
     }
 
-    // 远程目录
-    const char* remote_dir = "/home/L4D2_Manager/SourceMod_Installers";
+    // 获取配置的远程路径
+    std::string remoteRoot = GetRemoteRootPath();
+    std::string remote_dir = remoteRoot + "/SourceMod_Installers";
     char err_msg[256] = { 0 };
 
     // 检查并创建远程目录
-    if (!check_remote_dir(g_ssh_ctx->session, remote_dir, err_msg, sizeof(err_msg))) {
+    if (!check_remote_dir(g_ssh_ctx->session, remote_dir.c_str(), err_msg, sizeof(err_msg))) {
         AddLog(hWnd, L"远程目录不存在或ssh连接失败，尝试连接并创建...");
-        if (!create_remote_dir(g_ssh_ctx->session, remote_dir, err_msg, sizeof(err_msg))) {
+        if (!create_remote_dir(g_ssh_ctx->session, remote_dir.c_str(), err_msg, sizeof(err_msg))) {
             WCHAR err_w[256];
             CharToWChar(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
             AddLog(hWnd, err_w);
@@ -543,7 +564,7 @@ DWORD WINAPI HandleUploadMetaMod(LPVOID param) {
 
     // 构建远程路径
     char remote_path[256];
-    snprintf(remote_path, sizeof(remote_path), "%s/%s", remote_dir, file_name);
+    snprintf(remote_path, sizeof(remote_path), "%s/%s", remote_dir.c_str(), file_name);
 
     // 上传文件
     AddLog(hWnd, L"开始上传MetaMod安装包，若文件较大则请耐心等候......");
@@ -576,14 +597,15 @@ DWORD WINAPI HandleInstallSourceMetaMod(LPVOID param) {
     AddLog(hWnd, L"开始执行SourceMod安装脚本...");
 
     // 定义命令、输出缓冲区和错误信息缓冲区
-    const char* installCmd = "/home/L4D2_Manager/L4D2_Manager_API.sh install_sourcemod";
+    std::string remoteRoot = GetRemoteRootPath();
+    std::string installCmd = remoteRoot + "/L4D2_Manager_API.sh install_sourcemod";
     char output[4096] = { 0 };  // 足够大的缓冲区存储命令输出
     char err_msg[256] = { 0 };  // 存储错误信息
 
     // 执行SSH命令
     bool success = l4d2_ssh_exec_command(
         g_ssh_ctx,
-        installCmd,
+        installCmd.c_str(),
         output, sizeof(output),
         err_msg, sizeof(err_msg)
     );

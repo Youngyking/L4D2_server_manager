@@ -29,10 +29,14 @@
 #define IDC_UPLOAD_MM_BTN    1024  // 上传MetaMod按钮
 #define IDC_UPLOAD_SMM_BTN   1025  // 安装SourceMod与MetaMod按钮
 #define IDC_MAP_BTN          1026  // 地图管理按钮
+#define IDD_REMOTE_PATH_DIALOG  2001
+#define IDC_PATH_EDIT           2002
 
 // 菜单/对话框/图标/字符串ID（保持不变）
 #define IDM_ABOUT            40001 // 关于菜单，用于打开关于对话框
 #define IDM_EXIT             40002 // 退出菜单，用于关闭应用程序
+#define ID_FILE_MENU         10001
+#define ID_CHANGE_REMOTE_PATH 10002
 #define IDD_ABOUTBOX         100   // 关于对话框ID，定义关于对话框资源
 #define IDI_L4D2SERVERMANAGER 107  // 应用程序主图标ID
 #define IDI_SMALL            108   // 应用程序小图标ID

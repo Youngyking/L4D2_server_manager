@@ -2,6 +2,7 @@
 #include "manager.h"
 #include "map_manager.h"
 #include "cJSON.h"
+#include "config.h"
 #include <shlwapi.h>
 #include <vector>
 #include <string>
@@ -193,12 +194,16 @@ void UpdateMapList(HWND hWnd) {
         return;
     }
 
+    // 获取配置的远程路径
+    std::string remoteRoot = GetRemoteRootPath();
+    std::string command = remoteRoot + "/L4D2_Manager_API.sh list_maps";
+
     // 执行远程命令获取地图列表
     char output[8192] = { 0 };
     char err_msg[256] = { 0 };
     bool success = l4d2_ssh_exec_command(
         g_ssh_ctx,
-        "/home/L4D2_Manager/L4D2_Manager_API.sh list_maps",
+        command.c_str(),
         output, sizeof(output),
         err_msg, sizeof(err_msg)
     );
@@ -340,8 +345,9 @@ void OnUploadMap(HWND hWnd) {
     char map_name[256];
     WCharToChar_ser(map_name_w, map_name, sizeof(map_name));
 
-    // 服务器端临时目录
-    std::string remote_tmp_dir = "/home/L4D2_Manager/map_tmp/" + std::string(map_name);
+    // 服务器端临时目录 - 使用配置的根路径
+    std::string remoteRoot = GetRemoteRootPath();
+    std::string remote_tmp_dir = remoteRoot + "/map_tmp/" + std::string(map_name);
 
     // 创建服务器端临时目录
     char cmd[512];
@@ -358,7 +364,8 @@ void OnUploadMap(HWND hWnd) {
     // 递归上传文件夹内容
     if (UploadDirectory(hWnd, local_map_dir, remote_tmp_dir)) {
         // 上传成功后，调用脚本处理地图安装
-        snprintf(cmd, sizeof(cmd), "/home/L4D2_Manager/L4D2_Manager_API.sh install_map %s", map_name);
+        std::string installCmd = remoteRoot + "/L4D2_Manager_API.sh install_map " + std::string(map_name);
+        snprintf(cmd, sizeof(cmd), "%s", installCmd.c_str());
         if (l4d2_ssh_exec_command(g_ssh_ctx, cmd, output, sizeof(output), err_msg, sizeof(err_msg))) {
             UpdateMapList(hWnd);  // 更新地图列表
             MessageBoxW(hWnd, L"地图上传并安装成功", L"提示", MB_OK);
@@ -474,11 +481,16 @@ void OnUninstallMap(HWND hWnd) {
     int successCount = 0;
     int failCount = 0;
 
+    // 获取配置的远程路径
+    std::string remoteRoot = GetRemoteRootPath();
+
     // 逐个卸载选中的地图
     for (const std::string& mapName : selectedMaps) {
         // 执行卸载命令
+        std::string uninstallCmd = remoteRoot + "/L4D2_Manager_API.sh uninstall_map " + mapName;
         char cmd[512];
-        snprintf(cmd, sizeof(cmd), "/home/L4D2_Manager/L4D2_Manager_API.sh uninstall_map %s", mapName.c_str());
+        snprintf(cmd, sizeof(cmd), "%s", uninstallCmd.c_str());
+
         char output[4096] = { 0 };
         char err_msg[256] = { 0 };
         bool success = l4d2_ssh_exec_command(g_ssh_ctx, cmd, output, sizeof(output), err_msg, sizeof(err_msg));

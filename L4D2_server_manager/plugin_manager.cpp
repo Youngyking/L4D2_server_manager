@@ -6,6 +6,7 @@
 #include "manager.h"
 #include "plugin_manager.h"
 #include "cJSON.h"
+#include "config.h"
 #include <shlwapi.h>
 #include <vector>
 #include <string>
@@ -184,14 +185,6 @@ void CreatePluginWindowControls(HWND hWnd, HINSTANCE hInst) {
         hWnd, (HMENU)IDC_INSTALL_BTN, hInst, NULL
     );
 
-    //// 卸载插件输入框和按钮（保留输入框以便手动输入，也支持勾选）
-    //CreateWindowW(
-    //    L"EDIT", L"输入插件名或勾选列表",
-    //    WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-    //    370, 450, 150, 30,
-    //    hWnd, (HMENU)IDC_UNINSTALL_EDIT, hInst, NULL
-    //);
-
     CreateWindowW(
         L"BUTTON", L"卸载选中插件",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
@@ -257,12 +250,16 @@ void UpdatePluginLists(HWND hWnd) {
         return;
     }
 
+    // 获取配置的远程路径
+    std::string remoteRoot = GetRemoteRootPath();
+    std::string command = remoteRoot + "/L4D2_Manager_API.sh get_plugins";
+
     // 执行远程命令获取插件列表
     char output[8192] = { 0 };
     char err_msg[256] = { 0 };
     bool success = l4d2_ssh_exec_command(
         g_ssh_ctx,
-        "/home/L4D2_Manager/L4D2_Manager_API.sh get_plugins",
+        command.c_str(),
         output, sizeof(output),
         err_msg, sizeof(err_msg)
     );
@@ -406,8 +403,9 @@ void OnUploadPlugins(HWND hWnd) {
     char plugin_name[256];
     WCharToChar_ser(plugin_name_w, plugin_name, sizeof(plugin_name));
 
-    // 服务器端目标目录：/home/L4D2_Manager/Available_Plugins/插件名
-    std::string remote_dir = "/home/L4D2_Manager/Available_Plugins/" + std::string(plugin_name);
+    // 服务器端目标目录：使用配置的根路径
+    std::string remoteRoot = GetRemoteRootPath();
+    std::string remote_dir = remoteRoot + "/Available_Plugins/" + std::string(plugin_name);
 
     // 创建服务器端目录
     char cmd[512];
@@ -518,6 +516,9 @@ void OnInstallPlugin(HWND hWnd) {
         return;
     }
 
+    // 获取配置的远程路径
+    std::string remoteRoot = GetRemoteRootPath();
+
     // 批量安装勾选的插件
     int successCount = 0;
     for (const auto& pluginW : checkedPlugins) {
@@ -527,7 +528,8 @@ void OnInstallPlugin(HWND hWnd) {
 
         // 执行安装命令
         char cmd[512];
-        snprintf(cmd, sizeof(cmd), "/home/L4D2_Manager/L4D2_Manager_API.sh install_plugin %s", pluginName);
+        snprintf(cmd, sizeof(cmd), "%s/L4D2_Manager_API.sh install_plugin %s",
+            remoteRoot.c_str(), pluginName);
         char output[4096] = { 0 };
         char err_msg[256] = { 0 };
         bool success = l4d2_ssh_exec_command(g_ssh_ctx, cmd, output, sizeof(output), err_msg, sizeof(err_msg));
@@ -577,6 +579,9 @@ void OnUninstallPlugin(HWND hWnd) {
         }
     }
 
+    // 获取配置的远程路径
+    std::string remoteRoot = GetRemoteRootPath();
+
     // 批量卸载勾选的插件
     int successCount = 0;
     for (const auto& pluginW : checkedPlugins) {
@@ -586,7 +591,8 @@ void OnUninstallPlugin(HWND hWnd) {
 
         // 执行卸载命令
         char cmd[512];
-        snprintf(cmd, sizeof(cmd), "/home/L4D2_Manager/L4D2_Manager_API.sh uninstall_plugin %s", pluginName);
+        snprintf(cmd, sizeof(cmd), "%s/L4D2_Manager_API.sh uninstall_plugin %s",
+            remoteRoot.c_str(), pluginName);
         char output[4096] = { 0 };
         char err_msg[256] = { 0 };
         bool success = l4d2_ssh_exec_command(g_ssh_ctx, cmd, output, sizeof(output), err_msg, sizeof(err_msg));
@@ -635,6 +641,9 @@ void OnDeleteAvailablePlugin(HWND hWnd) {
         return;
     }
 
+    // 获取配置的远程路径
+    std::string remoteRoot = GetRemoteRootPath();
+
     // 批量删除勾选的插件
     int successCount = 0;
     for (const auto& pluginW : checkedPlugins) {
@@ -644,7 +653,8 @@ void OnDeleteAvailablePlugin(HWND hWnd) {
 
         // 执行删除命令
         char cmd[512];
-        snprintf(cmd, sizeof(cmd), "rm -rf /home/L4D2_Manager/Available_Plugins/%s", pluginName);
+        snprintf(cmd, sizeof(cmd), "rm -rf %s/Available_Plugins/%s",
+            remoteRoot.c_str(), pluginName);
         char output[4096] = { 0 };
         char err_msg[256] = { 0 };
         bool success = l4d2_ssh_exec_command(g_ssh_ctx, cmd, output, sizeof(output), err_msg, sizeof(err_msg));

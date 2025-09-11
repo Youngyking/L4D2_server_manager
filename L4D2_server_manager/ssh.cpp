@@ -23,6 +23,67 @@
 // 声明外部函数
 std::string GetRemoteRootPath();
 
+// 将GBK编码转换为UTF-8编码
+static char* GBKtoU8(const char* gbk_str, char* u8_buf, int buf_len) {
+    if (!gbk_str || !u8_buf || buf_len <= 0) {
+        return nullptr; // 无效参数检查
+    }
+
+    // 步骤1: 先将GBK转换为UTF-16（中间过渡编码）
+    int u16_len = MultiByteToWideChar(CP_ACP, 0, gbk_str, -1, nullptr, 0);
+    if (u16_len == 0) {
+        return nullptr; // GBK编码无效
+    }
+
+    WCHAR* u16_buf = new WCHAR[u16_len];
+    if (!MultiByteToWideChar(CP_ACP, 0, gbk_str, -1, u16_buf, u16_len)) {
+        delete[] u16_buf;
+        return nullptr; // 转换UTF-16失败
+    }
+
+    // 步骤2: 将UTF-16转换为UTF-8
+    int u8_len = WideCharToMultiByte(CP_UTF8, 0, u16_buf, -1, nullptr, 0, nullptr, nullptr);
+    if (u8_len == 0 || u8_len > buf_len) {
+        delete[] u16_buf;
+        return nullptr; // 缓冲区不足或转换失败
+    }
+
+    WideCharToMultiByte(CP_UTF8, 0, u16_buf, -1, u8_buf, buf_len, nullptr, nullptr);
+    delete[] u16_buf;
+    return u8_buf;
+}
+
+// 将UTF-8编码转换为GBK编码
+static char* U8toGBK(const char* u8_str, char* gbk_buf, int buf_len) {
+    if (!u8_str || !gbk_buf || buf_len <= 0) {
+        return nullptr; // 无效参数检查
+    }
+
+    // 步骤1: 先将UTF-8转换为UTF-16（中间过渡编码）
+    int u16_len = MultiByteToWideChar(CP_UTF8, 0, u8_str, -1, nullptr, 0);
+    if (u16_len == 0) {
+        return nullptr; // UTF-8编码无效
+    }
+
+    WCHAR* u16_buf = new WCHAR[u16_len];
+    if (!MultiByteToWideChar(CP_UTF8, 0, u8_str, -1, u16_buf, u16_len)) {
+        delete[] u16_buf;
+        return nullptr; // 转换UTF-16失败
+    }
+
+    // 步骤2: 将UTF-16转换为GBK
+    int gbk_len = WideCharToMultiByte(CP_ACP, 0, u16_buf, -1, nullptr, 0, nullptr, nullptr);
+    if (gbk_len == 0 || gbk_len > buf_len) {
+        delete[] u16_buf;
+        return nullptr; // 缓冲区不足或转换失败
+    }
+
+    WideCharToMultiByte(CP_ACP, 0, u16_buf, -1, gbk_buf, buf_len, nullptr, nullptr);
+    delete[] u16_buf;
+    return gbk_buf;
+}
+
+
 //doc_to_unix
 static bool convert_crlf_to_lf(const char* input_path, const char* temp_path) {
     FILE* in_file = fopen(input_path, "rb");
@@ -388,7 +449,9 @@ bool upload_file_normal(ssh_session session, const char* local_path, const char*
     }
 
     // 检查远程文件是否存在，若存在则删除
-    sftp_attributes remote_attrs = sftp_stat(sftp, remote_path);
+    char remote_path_tep[256];
+    GBKtoU8(remote_path, remote_path_tep, 256);
+    sftp_attributes remote_attrs = sftp_stat(sftp, remote_path_tep);
     if (remote_attrs) {
         sftp_attributes_free(remote_attrs);
         // 尝试删除远程文件
@@ -408,7 +471,7 @@ bool upload_file_normal(ssh_session session, const char* local_path, const char*
     }
 
     // 创建远程文件
-    sftp_file remote_file = sftp_open(sftp, remote_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    sftp_file remote_file = sftp_open(sftp, remote_path_tep, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (!remote_file) {
         snprintf(err_msg, err_len, "创建远程文件失败: %s", sftp_get_error(sftp));
         fclose(local_file);

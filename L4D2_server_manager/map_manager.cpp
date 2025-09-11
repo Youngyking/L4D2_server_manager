@@ -16,16 +16,33 @@
 // 全局SSH上下文
 extern L4D2_SSH_Context* g_ssh_ctx;
 
-// 字符串转换辅助函数
-static WCHAR* CharToWChar_ser(const char* str, WCHAR* out, int out_len) {
-    MultiByteToWideChar(CP_ACP, 0, str, -1, out, out_len);
-    return out;
+// 将一段数据视为UTF-16编码，将其转化为系统默认编码（多为GBK）并返回
+static char* U16toGBK(LPCWSTR wstr, char* buf, int buf_len) {
+    WideCharToMultiByte(CP_ACP, 0, wstr, -1, buf, buf_len, NULL, NULL);
+    return buf;
 }
 
-static char* WCharToChar_ser(const WCHAR* wstr, char* out, int out_len) {
-    WideCharToMultiByte(CP_ACP, 0, wstr, -1, out, out_len, NULL, NULL);
-    return out;
+// 将一段数据视为系统默认编码（多为GBK），将其转化为UTF-16编码并返回
+static WCHAR* GBKtoU16(const char* str, WCHAR* buf, int buf_len) {
+    MultiByteToWideChar(CP_ACP, 0, str, -1, buf, buf_len);
+    return buf;
 }
+
+// 将一段数据视为UTF-16编码，将其转化为UTF-8编码并返回
+static char* U16toU8(LPCWSTR wstr, char* buf, int buf_len) {
+    WideCharToMultiByte(CP_UTF8, 0, wstr, -1, buf, buf_len, NULL, NULL);
+    return buf;
+}
+
+// 将一段数据视为UTF-8编码，将其转化为UTF-16编码并返回
+static WCHAR* U8toU16(const char* str, WCHAR* buf, int buf_len) {
+    MultiByteToWideChar(CP_UTF8, 0, str, -1, buf, buf_len);
+    return buf;
+}
+
+
+
+
 
 // 地图窗口消息处理
 LRESULT CALLBACK MapWindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -210,7 +227,7 @@ void UpdateMapList(HWND hWnd) {
 
     if (!success) {
         WCHAR err_w[256];
-        CharToWChar_ser(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
+        GBKtoU16(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
         MessageBoxW(hWnd, err_w, L"获取地图列表失败", MB_ICONERROR);
         return;
     }
@@ -247,7 +264,7 @@ void UpdateMapList(HWND hWnd) {
         item.mask = LVIF_TEXT;
         item.iItem = i;
         WCHAR name[256];
-        item.pszText = CharToWChar_ser(installed_maps[i].c_str(), name, 256);
+        item.pszText = GBKtoU16(installed_maps[i].c_str(), name, 256);
         ListView_InsertItem(hInstalled, &item);
     }
 }
@@ -264,7 +281,7 @@ std::vector<std::string> GetSelectedMaps(HWND hList) {
             ListView_GetItemText(hList, i, 0, mapName, sizeof(mapName) / sizeof(WCHAR));
 
             char mapNameA[256];
-            WCharToChar_ser(mapName, mapNameA, sizeof(mapNameA));
+            U16toGBK(mapName, mapNameA, sizeof(mapNameA));
             selectedMaps.push_back(std::string(mapNameA));
         }
     }
@@ -343,7 +360,7 @@ void OnUploadMap(HWND hWnd) {
 
     // 转换地图名称为多字节字符串
     char map_name[256];
-    WCharToChar_ser(map_name_w, map_name, sizeof(map_name));
+    U16toGBK(map_name_w, map_name, sizeof(map_name));
 
     // 服务器端临时目录 - 使用配置的根路径
     std::string remoteRoot = GetRemoteRootPath();
@@ -356,7 +373,7 @@ void OnUploadMap(HWND hWnd) {
     char err_msg[256] = { 0 };
     if (!l4d2_ssh_exec_command(g_ssh_ctx, cmd, output, sizeof(output), err_msg, sizeof(err_msg))) {
         WCHAR err_w[256];
-        CharToWChar_ser(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
+        GBKtoU16(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
         MessageBoxW(hWnd, err_w, L"创建远程临时目录失败", MB_ICONERROR);
         return;
     }
@@ -372,7 +389,7 @@ void OnUploadMap(HWND hWnd) {
         }
         else {
             WCHAR err_w[256];
-            CharToWChar_ser(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
+            GBKtoU16(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
             MessageBoxW(hWnd, err_w, L"地图安装失败", MB_ICONERROR);
         }
     }
@@ -405,7 +422,7 @@ static bool UploadDirectory(HWND hWnd, const WCHAR* local_dir, const std::string
 
             // 构建远程子目录路径
             char subdir_name[256];
-            WCharToChar_ser(find_data.cFileName, subdir_name, sizeof(subdir_name));
+            U16toGBK(find_data.cFileName, subdir_name, sizeof(subdir_name));
             std::string remote_subdir = remote_dir + "/" + subdir_name;
 
             // 创建远程子目录
@@ -430,18 +447,18 @@ static bool UploadDirectory(HWND hWnd, const WCHAR* local_dir, const std::string
 
             // 构建远程文件路径
             char filename[256];
-            WCharToChar_ser(find_data.cFileName, filename, sizeof(filename));
+            U16toGBK(find_data.cFileName, filename, sizeof(filename));
             std::string remote_file = remote_dir + "/" + filename;
 
-            // 转换本地路径为多字节
+            // 转换本地路径为GBK
             char local_path[512];
-            WCharToChar_ser(local_file, local_path, sizeof(local_path));
+            U16toGBK(local_file, local_path, sizeof(local_path));
 
             // 上传文件
             char err_msg[256] = { 0 };
             if (!upload_file_normal(g_ssh_ctx->session, local_path, remote_file.c_str(), err_msg, sizeof(err_msg))) {
                 WCHAR err_w[256];
-                CharToWChar_ser(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
+                GBKtoU16(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
                 MessageBoxW(hWnd, err_w, L"文件上传失败", MB_ICONWARNING);
                 result = false;
             }
@@ -501,7 +518,7 @@ void OnUninstallMap(HWND hWnd) {
         else {
             failCount++;
             WCHAR err_w[256];
-            CharToWChar_ser(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
+            GBKtoU16(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
 
             WCHAR errorMsg[512];
             swprintf_s(errorMsg, L"卸载地图 %s 失败:\n%s", mapName.c_str(), err_w);

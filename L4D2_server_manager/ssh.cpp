@@ -370,11 +370,13 @@ bool upload_file_txt(ssh_session session, const char* local_path, const char* re
     }
 
     // 检查远程文件是否存在，若存在则删除
-    sftp_attributes remote_attrs = sftp_stat(sftp, remote_path);
+    char remote_path_tmp[256];
+    GBKtoU8(remote_path, remote_path_tmp, 256);
+    sftp_attributes remote_attrs = sftp_stat(sftp, remote_path_tmp);
     if (remote_attrs) {
         sftp_attributes_free(remote_attrs);
         // 尝试删除远程文件
-        if (sftp_unlink(sftp, remote_path) != SSH_OK) {
+        if (sftp_unlink(sftp, remote_path_tmp) != SSH_OK) {
             snprintf(err_msg, err_len, "删除远程文件失败: %s", sftp_get_error(sftp));
             sftp_free(sftp);
             remove(temp_path);
@@ -392,7 +394,7 @@ bool upload_file_txt(ssh_session session, const char* local_path, const char* re
     }
 
     // 创建远程文件
-    sftp_file remote_file = sftp_open(sftp, remote_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    sftp_file remote_file = sftp_open(sftp, remote_path_tmp, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (!remote_file) {
         snprintf(err_msg, err_len, "创建远程文件失败: %s", sftp_get_error(sftp));
         fclose(local_file);
@@ -656,7 +658,9 @@ bool l4d2_ssh_exec_command(L4D2_SSH_Context* ctx, const char* cmd, char* output,
     }
 
     // 将ssh_channel_exec替换为ssh_channel_request_exec
-    rc = ssh_channel_request_exec(channel, cmd);
+    char cmd_u8[256];
+    GBKtoU8(cmd, cmd_u8, 256);
+    rc = ssh_channel_request_exec(channel, cmd_u8);
     if (rc != SSH_OK) {
         snprintf(err_msg, err_len, "执行命令失败: %s", ssh_get_error(ctx->session));
         ssh_channel_close(channel);
@@ -665,27 +669,30 @@ bool l4d2_ssh_exec_command(L4D2_SSH_Context* ctx, const char* cmd, char* output,
     }
 
     // 读取命令输出
-    output[0] = '\0';
-    char buffer[1024];
-    int nbytes;
-    while ((nbytes = ssh_channel_read(channel, buffer, sizeof(buffer) - 1, 0)) > 0) {
-        buffer[nbytes] = '\0';
-        // 使用更安全的字符串拼接方式
-        size_t current_len = strlen(output);
-        if (current_len + nbytes < (size_t)output_len - 1) {
-            strcat_s(output, output_len, buffer);
+    if ((output != nullptr) && (output_len != 0)) {
+        output[0] = '\0';
+        char buffer[1024];
+        int nbytes;
+        while ((nbytes = ssh_channel_read(channel, buffer, sizeof(buffer) - 1, 0)) > 0) {
+            buffer[nbytes] = '\0';
+            // 使用更安全的字符串拼接方式
+            size_t current_len = strlen(output);
+            if (current_len + nbytes < (size_t)output_len - 1) {
+                strcat_s(output, output_len, buffer);
+            }
+            else {
+                break; // 防止缓冲区溢出
+            }
         }
-        else {
-            break; // 防止缓冲区溢出
-        }
-    }
 
-    if (nbytes < 0) {
-        snprintf(err_msg, err_len, "读取输出失败: %s", ssh_get_error(ctx->session));
-        ssh_channel_close(channel);
-        ssh_channel_free(channel);
-        return false;
+        if (nbytes < 0) {
+            snprintf(err_msg, err_len, "读取输出失败: %s", ssh_get_error(ctx->session));
+            ssh_channel_close(channel);
+            ssh_channel_free(channel);
+            return false;
+        }
     }
+    
 
     ssh_channel_close(channel);
     int exit_status = ssh_channel_get_exit_status(channel);

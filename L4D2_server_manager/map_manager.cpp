@@ -398,7 +398,7 @@ void OnUploadMap(HWND hWnd) {
     }
 }
 
-// 递归上传目录内容
+// 递归上传目录内容，将所有文件（包括子目录中的）上传到同一个远程目录，不保留目录结构
 static bool UploadDirectory(HWND hWnd, const WCHAR* local_dir, const std::string& remote_dir) {
     WIN32_FIND_DATAW find_data;
     WCHAR search_path[MAX_PATH];
@@ -420,22 +420,8 @@ static bool UploadDirectory(HWND hWnd, const WCHAR* local_dir, const std::string
             WCHAR local_subdir[MAX_PATH];
             swprintf_s(local_subdir, L"%s\\%s", local_dir, find_data.cFileName);
 
-            // 构建远程子目录路径
-            char subdir_name[256];
-            U16toGBK(find_data.cFileName, subdir_name, sizeof(subdir_name));
-            std::string remote_subdir = remote_dir + "/" + subdir_name;
-
-            // 创建远程子目录
-            char cmd[512];
-            snprintf(cmd, sizeof(cmd), "mkdir -p %s", remote_subdir.c_str());
-            char err_msg[256] = { 0 };
-            if (!l4d2_ssh_exec_command(g_ssh_ctx, cmd, nullptr, 0, err_msg, sizeof(err_msg))) {
-                result = false;
-                continue;
-            }
-
-            // 递归上传子目录
-            if (!UploadDirectory(hWnd, local_subdir, remote_subdir)) {
+            // 递归上传子目录，但远程目录仍使用同一个根目录
+            if (!UploadDirectory(hWnd, local_subdir, remote_dir)) {
                 result = false;
             }
         }
@@ -445,7 +431,7 @@ static bool UploadDirectory(HWND hWnd, const WCHAR* local_dir, const std::string
             WCHAR local_file[MAX_PATH];
             swprintf_s(local_file, L"%s\\%s", local_dir, find_data.cFileName);
 
-            // 构建远程文件路径
+            // 构建远程文件路径 - 所有文件都直接放到remote_dir下
             char filename[256];
             U16toGBK(find_data.cFileName, filename, sizeof(filename));
             std::string remote_file = remote_dir + "/" + filename;

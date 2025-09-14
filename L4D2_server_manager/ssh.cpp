@@ -671,14 +671,16 @@ bool l4d2_ssh_exec_command(L4D2_SSH_Context* ctx, const char* cmd, char* output,
     // 读取命令输出
     if ((output != nullptr) && (output_len != 0)) {
         output[0] = '\0';
-        char buffer[1024];
+        char buffer_u8[1024];
+        char buffer_gbk[1024];
         int nbytes;
-        while ((nbytes = ssh_channel_read(channel, buffer, sizeof(buffer) - 1, 0)) > 0) {
-            buffer[nbytes] = '\0';
+        while ((nbytes = ssh_channel_read(channel, buffer_u8, sizeof(buffer_u8) - 1, 0)) > 0) {
+            buffer_u8[nbytes] = '\0';
+            U8toGBK(buffer_u8, buffer_gbk, 1024);
             // 使用更安全的字符串拼接方式
             size_t current_len = strlen(output);
             if (current_len + nbytes < (size_t)output_len - 1) {
-                strcat_s(output, output_len, buffer);
+                strcat_s(output, output_len, buffer_gbk);
             }
             else {
                 break; // 防止缓冲区溢出

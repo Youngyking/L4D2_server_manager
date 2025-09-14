@@ -2,6 +2,7 @@
 #include "manager.h"
 #include "map_manager.h"
 #include "cJSON.h"
+#include "encoding_convert.h"
 #include "config.h"
 #include <shlwapi.h>
 #include <vector>
@@ -15,34 +16,6 @@
 
 // 全局SSH上下文
 extern L4D2_SSH_Context* g_ssh_ctx;
-
-// 将一段数据视为UTF-16编码，将其转化为系统默认编码（多为GBK）并返回
-static char* U16toGBK(LPCWSTR wstr, char* buf, int buf_len) {
-    WideCharToMultiByte(CP_ACP, 0, wstr, -1, buf, buf_len, NULL, NULL);
-    return buf;
-}
-
-// 将一段数据视为系统默认编码（多为GBK），将其转化为UTF-16编码并返回
-static WCHAR* GBKtoU16(const char* str, WCHAR* buf, int buf_len) {
-    MultiByteToWideChar(CP_ACP, 0, str, -1, buf, buf_len);
-    return buf;
-}
-
-// 将一段数据视为UTF-16编码，将其转化为UTF-8编码并返回
-static char* U16toU8(LPCWSTR wstr, char* buf, int buf_len) {
-    WideCharToMultiByte(CP_UTF8, 0, wstr, -1, buf, buf_len, NULL, NULL);
-    return buf;
-}
-
-// 将一段数据视为UTF-8编码，将其转化为UTF-16编码并返回
-static WCHAR* U8toU16(const char* str, WCHAR* buf, int buf_len) {
-    MultiByteToWideChar(CP_UTF8, 0, str, -1, buf, buf_len);
-    return buf;
-}
-
-
-
-
 
 // 地图窗口消息处理
 LRESULT CALLBACK MapWindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);

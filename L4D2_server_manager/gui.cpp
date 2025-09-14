@@ -17,6 +17,7 @@
 #include "gui.h"
 #include "ssh.h"
 #include "config.h"
+#include "encoding_convert.h"
 
 // 初始化通用控件（ListView需要）
 void InitCommonControlsExWrapper() {
@@ -258,7 +259,7 @@ void UpdateInstanceList(HWND hWnd, const char* instancesJson) {
 
         // 转换实例名称为宽字符（UTF-8到Unicode）
         WCHAR nameW[256] = { 0 };
-        MultiByteToWideChar(CP_UTF8, 0, instanceName, -1, nameW, sizeof(nameW) / sizeof(WCHAR));
+        GBKtoU16(instanceName, nameW, 256);
 
         // 获取实例属性
         cJSON* port = cJSON_GetObjectItem(currentInstance, "port");
@@ -273,11 +274,11 @@ void UpdateInstanceList(HWND hWnd, const char* instancesJson) {
 
         // 转换端口为宽字符（UTF-8到Unicode）
         WCHAR portW[16] = { 0 };
-        MultiByteToWideChar(CP_UTF8, 0, port->valuestring, -1, portW, sizeof(portW) / sizeof(WCHAR));
+        GBKtoU16(port->valuestring, portW, 16);
 
         // 转换地图为宽字符（UTF-8到Unicode）
         WCHAR mapW[256] = { 0 };
-        MultiByteToWideChar(CP_UTF8, 0, map->valuestring, -1, mapW, sizeof(mapW) / sizeof(WCHAR));
+        GBKtoU16(map->valuestring, mapW, 256);
 
         // 根据running的布尔值设置状态文本（true/false判断）
         WCHAR statusW[20] = { 0 };

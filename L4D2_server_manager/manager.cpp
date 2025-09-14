@@ -15,6 +15,7 @@
 #include "cJSON.h"
 #include "gui.h"
 #include "resource.h"
+#include "encoding_convert.h"
 #include "config.h"
 #include <stdlib.h>
 #include <wchar.h>
@@ -27,23 +28,7 @@
 // 全局端口-实例名称映射表（动态更新）
 std::map<std::string, std::string> g_portToInstance;
 
-// 将一段数据视为UTF-16编码，将其转化为GBK编码并返回
-static char* WCharToChar(LPCWSTR wstr, char* buf, int buf_len) {
-    WideCharToMultiByte(CP_ACP, 0, wstr, -1, buf, buf_len, NULL, NULL);
-    return buf;
-}
 
-// 将一段数据视为GBK编码，将其转化为UTF-16编码并返回
-static WCHAR* CharToWChar(const char* str, WCHAR* buf, int buf_len) {
-    MultiByteToWideChar(CP_ACP, 0, str, -1, buf, buf_len);
-    return buf;
-}
-
-// 将一段数据视为UTF-8编码，将其转化为UTF-16编码并返回
-static WCHAR* CharToWChar_ser(const char* str, WCHAR* buf, int buf_len) {
-    MultiByteToWideChar(CP_UTF8, 0, str, -1, buf, buf_len);
-    return buf;
-}
 
 // 处理SSH连接请求（线程函数）
 DWORD WINAPI HandleConnectRequest(LPVOID param) {
@@ -57,9 +42,9 @@ DWORD WINAPI HandleConnectRequest(LPVOID param) {
     GetWindowTextW(GetDlgItem(hWnd, IDC_PASS_EDIT), pass_w, sizeof(pass_w) / sizeof(WCHAR));
 
     // 转换为多字节
-    WCharToChar(ip_w, ip, sizeof(ip));
-    WCharToChar(user_w, user, sizeof(user));
-    WCharToChar(pass_w, pass, sizeof(pass));
+    U16toGBK(ip_w, ip, sizeof(ip));
+    U16toGBK(user_w, user, sizeof(user));
+    U16toGBK(pass_w, pass, sizeof(pass));
 
     // 初始化SSH
     if (g_ssh_ctx) {
@@ -76,14 +61,14 @@ DWORD WINAPI HandleConnectRequest(LPVOID param) {
     AddLog(hWnd, L"正在连接到服务器...");
     bool success = l4d2_ssh_connect(g_ssh_ctx, ip, user, pass, err_msg, sizeof(err_msg));
     WCHAR err_msg_w[256];
-    CharToWChar(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
+    GBKtoU16(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
     AddLog(hWnd, err_msg_w);
 
     if (success) {
         // 连接成功后上传API脚本
         AddLog(hWnd, L"正在检查API脚本是否安装为最新...");
         if (l4d2_ssh_upload_api_script(g_ssh_ctx, err_msg, sizeof(err_msg))) {
-            CharToWChar(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
+            GBKtoU16(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
             AddLog(hWnd, err_msg_w);
 
             // 新增：执行依赖检查与安装
@@ -99,7 +84,7 @@ DWORD WINAPI HandleConnectRequest(LPVOID param) {
                 dep_output, sizeof(dep_output),
                 err_msg, sizeof(err_msg)
             );
-            CharToWChar_ser(dep_output, output_w, sizeof(output_w) / sizeof(WCHAR));
+            GBKtoU16(dep_output, output_w, sizeof(output_w) / sizeof(WCHAR));
             AddLog(hWnd, output_w);
 
             if (dep_success) {
@@ -108,7 +93,7 @@ DWORD WINAPI HandleConnectRequest(LPVOID param) {
                 HandleGetInstances(hWnd);
             }
             else {
-                CharToWChar(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
+                GBKtoU16(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
                 AddLog(hWnd, err_msg_w);
                 UpdateConnectionStatus(hWnd, L"已连接，但依赖安装失败", FALSE);
             }
@@ -126,7 +111,7 @@ DWORD WINAPI HandleStartInstance(LPVOID param) {
     HWND hWnd = (HWND)param;
     if (!g_ssh_ctx || !g_ssh_ctx->is_connected) {
         WCHAR logMsg[256];
-        CharToWChar("未连接到服务器，无法启动实例", logMsg, sizeof(logMsg) / sizeof(WCHAR));
+        GBKtoU16("未连接到服务器，无法启动实例", logMsg, sizeof(logMsg) / sizeof(WCHAR));
         AddLog(hWnd, logMsg);
         return 0;
     }
@@ -135,7 +120,7 @@ DWORD WINAPI HandleStartInstance(LPVOID param) {
     WCHAR port_w[16];
     GetWindowTextW(GetDlgItem(hWnd, IDC_PORT_EDIT), port_w, sizeof(port_w) / sizeof(WCHAR));
     char port[16];
-    WCharToChar(port_w, port, sizeof(port));
+    U16toGBK(port_w, port, sizeof(port));
 
     // 从全局映射表中查找实例名称
     std::string instanceName;
@@ -144,7 +129,7 @@ DWORD WINAPI HandleStartInstance(LPVOID param) {
     }
     else {
         WCHAR logMsg[256];
-        CharToWChar("未找到对应端口的实例配置", logMsg, sizeof(logMsg) / sizeof(WCHAR));
+        GBKtoU16("未找到对应端口的实例配置", logMsg, sizeof(logMsg) / sizeof(WCHAR));
         AddLog(hWnd, logMsg);
         return 0;
     }
@@ -156,7 +141,7 @@ DWORD WINAPI HandleStartInstance(LPVOID param) {
     else {
         // 未找到对应实例
         WCHAR logMsg[256];
-        CharToWChar("未找到对应端口的实例配置", logMsg, sizeof(logMsg) / sizeof(WCHAR));
+        GBKtoU16("未找到对应端口的实例配置", logMsg, sizeof(logMsg) / sizeof(WCHAR));
         AddLog(hWnd, logMsg);
         return 0;
     }
@@ -165,7 +150,7 @@ DWORD WINAPI HandleStartInstance(LPVOID param) {
     WCHAR logMsg[256];
     WCHAR instanceNameW[128];
 
-    CharToWChar_ser(instanceName.c_str(), instanceNameW, sizeof(instanceNameW) / sizeof(WCHAR));
+    GBKtoU16(instanceName.c_str(), instanceNameW, sizeof(instanceNameW) / sizeof(WCHAR));
     swprintf_s(logMsg, L"正在启动实例: %ls（端口: %s）...", instanceNameW, port_w);
     AddLog(hWnd, logMsg);
 
@@ -184,19 +169,19 @@ DWORD WINAPI HandleStartInstance(LPVOID param) {
 
     // 转换输出日志并显示
     WCHAR output_w[4096], err_msg_w[256];
-    CharToWChar_ser(output, output_w, sizeof(output_w) / sizeof(WCHAR));
-    CharToWChar_ser(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
+    GBKtoU16(output, output_w, sizeof(output_w) / sizeof(WCHAR));
+    GBKtoU16(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
 
     AddLog(hWnd, output_w);
     if (success) {
         WCHAR successMsg[64];
-        CharToWChar("实例启动成功", successMsg, sizeof(successMsg) / sizeof(WCHAR));
+        GBKtoU16("实例启动成功", successMsg, sizeof(successMsg) / sizeof(WCHAR));
         AddLog(hWnd, successMsg);
         HandleGetInstances(hWnd);  // 刷新实例列表
     }
     else {
         WCHAR failPrefix[64];
-        CharToWChar("启动失败: ", failPrefix, sizeof(failPrefix) / sizeof(WCHAR));
+        GBKtoU16("启动失败: ", failPrefix, sizeof(failPrefix) / sizeof(WCHAR));
         AddLog(hWnd, failPrefix);
         AddLog(hWnd, err_msg_w);
     }
@@ -209,7 +194,7 @@ DWORD WINAPI HandleStopInstance(LPVOID param) {
     HWND hWnd = (HWND)param;
     if (!g_ssh_ctx || !g_ssh_ctx->is_connected) {
         WCHAR logMsg[256];
-        CharToWChar("未连接到服务器，无法停止实例", logMsg, sizeof(logMsg) / sizeof(WCHAR));
+        GBKtoU16("未连接到服务器，无法停止实例", logMsg, sizeof(logMsg) / sizeof(WCHAR));
         AddLog(hWnd, logMsg);
         return 0;
     }
@@ -218,7 +203,7 @@ DWORD WINAPI HandleStopInstance(LPVOID param) {
     WCHAR port_w[16];
     GetWindowTextW(GetDlgItem(hWnd, IDC_PORT_EDIT), port_w, sizeof(port_w) / sizeof(WCHAR));
     char port[16];
-    WCharToChar(port_w, port, sizeof(port));
+    U16toGBK(port_w, port, sizeof(port));
 
     // 从全局映射表查找实例名称
     std::string instanceName;
@@ -238,7 +223,7 @@ DWORD WINAPI HandleStopInstance(LPVOID param) {
     WCHAR logMsg[256];
     WCHAR instanceNameW[128];
 
-    CharToWChar_ser(instanceName.c_str(), instanceNameW, sizeof(instanceNameW) / sizeof(WCHAR));
+    GBKtoU16(instanceName.c_str(), instanceNameW, sizeof(instanceNameW) / sizeof(WCHAR));
     swprintf_s(logMsg, L"正在停止实例: %ls（端口: %s）...", instanceNameW, port_w);
     AddLog(hWnd, logMsg);
 
@@ -257,8 +242,8 @@ DWORD WINAPI HandleStopInstance(LPVOID param) {
 
     // 转换输出日志并显示
     WCHAR output_w[4096], err_msg_w[256];
-    CharToWChar_ser(output, output_w, sizeof(output_w) / sizeof(WCHAR));
-    CharToWChar_ser(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
+    GBKtoU16(output, output_w, sizeof(output_w) / sizeof(WCHAR));
+    GBKtoU16(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
 
     AddLog(hWnd, output_w);
     if (success) {
@@ -268,7 +253,7 @@ DWORD WINAPI HandleStopInstance(LPVOID param) {
         WCHAR successMsg[256];
         WCHAR instanceNameW[128];
 
-        CharToWChar_ser(instanceName.c_str(), instanceNameW, sizeof(instanceNameW) / sizeof(WCHAR));
+        GBKtoU16(instanceName.c_str(), instanceNameW, sizeof(instanceNameW) / sizeof(WCHAR));
         swprintf_s(successMsg, L"实例 %ls（端口: %s）停止成功", instanceNameW, port_w);
         AddLog(hWnd, successMsg);
         HandleGetInstances(hWnd);  // 刷新实例列表
@@ -277,7 +262,7 @@ DWORD WINAPI HandleStopInstance(LPVOID param) {
         WCHAR failMsg[256];
         WCHAR instanceNameW[128];
 
-        CharToWChar_ser(instanceName.c_str(), instanceNameW, sizeof(instanceNameW) / sizeof(WCHAR));
+        GBKtoU16(instanceName.c_str(), instanceNameW, sizeof(instanceNameW) / sizeof(WCHAR));
         swprintf_s(failMsg, L"实例 %ls（端口: %s）停止失败: %s",
             instanceNameW, port_w, err_msg_w);
         AddLog(hWnd, failMsg);
@@ -309,8 +294,8 @@ DWORD WINAPI HandleDeployServer(LPVOID param) {
     );
 
     WCHAR output_w[4096], err_msg_w[256];
-    CharToWChar_ser(output, output_w, sizeof(output_w) / sizeof(WCHAR));
-    CharToWChar_ser(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
+    GBKtoU16(output, output_w, sizeof(output_w) / sizeof(WCHAR));
+    GBKtoU16(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
 
     AddLog(hWnd, output_w);
     if (success) {
@@ -364,7 +349,7 @@ DWORD WINAPI HandleGetStatus(LPVOID param) {
     }
     else {
         WCHAR err_msg_w[256];
-        CharToWChar_ser(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
+        GBKtoU16(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
         AddLog(hWnd, err_msg_w);
     }
 
@@ -422,7 +407,7 @@ DWORD WINAPI HandleGetInstances(LPVOID param) {
     }
     else {
         WCHAR err_msg_w[256];
-        CharToWChar_ser(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
+        GBKtoU16(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
         AddLog(hWnd, err_msg_w);
     }
 
@@ -447,7 +432,7 @@ DWORD WINAPI HandleUploadSourceMod(LPVOID param) {
         AddLog(hWnd, L"远程目录不存在，尝试创建...");
         if (!create_remote_dir(g_ssh_ctx->session, remote_dir.c_str(), err_msg, sizeof(err_msg))) {
             WCHAR err_w[256];
-            CharToWChar(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
+            GBKtoU16(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
             AddLog(hWnd, err_w);
             return 0;
         }
@@ -478,7 +463,7 @@ DWORD WINAPI HandleUploadSourceMod(LPVOID param) {
 
     // 转换路径为多字节
     char local_path[256];
-    WCharToChar(fileName, local_path, sizeof(local_path));
+    U16toGBK(fileName, local_path, sizeof(local_path));
 
     // 获取文件名
     char* file_name = strrchr(local_path, '\\');
@@ -493,13 +478,13 @@ DWORD WINAPI HandleUploadSourceMod(LPVOID param) {
     AddLog(hWnd, L"开始上传SourceMod安装包，若文件较大则请耐心等候...");
     if (upload_file_normal(g_ssh_ctx->session, local_path, remote_path, err_msg, sizeof(err_msg))) {
         WCHAR success_msg[256];
-        CharToWChar(err_msg, success_msg, sizeof(success_msg) / sizeof(WCHAR));
+        GBKtoU16(err_msg, success_msg, sizeof(success_msg) / sizeof(WCHAR));
         AddLog(hWnd, success_msg);
         AddLog(hWnd, L"上传成功");
     }
     else {
         WCHAR err_w[256];
-        CharToWChar(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
+        GBKtoU16(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
         AddLog(hWnd, err_w);
     }
 
@@ -524,7 +509,7 @@ DWORD WINAPI HandleUploadMetaMod(LPVOID param) {
         AddLog(hWnd, L"远程目录不存在或ssh连接失败，尝试连接并创建...");
         if (!create_remote_dir(g_ssh_ctx->session, remote_dir.c_str(), err_msg, sizeof(err_msg))) {
             WCHAR err_w[256];
-            CharToWChar(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
+            GBKtoU16(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
             AddLog(hWnd, err_w);
             return 0;
         }
@@ -555,7 +540,7 @@ DWORD WINAPI HandleUploadMetaMod(LPVOID param) {
 
     // 转换路径为多字节
     char local_path[256];
-    WCharToChar(fileName, local_path, sizeof(local_path));
+    U16toGBK(fileName, local_path, sizeof(local_path));
 
     // 获取文件名
     char* file_name = strrchr(local_path, '\\');
@@ -570,13 +555,13 @@ DWORD WINAPI HandleUploadMetaMod(LPVOID param) {
     AddLog(hWnd, L"开始上传MetaMod安装包，若文件较大则请耐心等候......");
     if (upload_file_normal(g_ssh_ctx->session, local_path, remote_path, err_msg, sizeof(err_msg))) {
         WCHAR success_msg[256];
-        CharToWChar(err_msg, success_msg, sizeof(success_msg) / sizeof(WCHAR));
+        GBKtoU16(err_msg, success_msg, sizeof(success_msg) / sizeof(WCHAR));
         AddLog(hWnd, success_msg);
         AddLog(hWnd, L"上传成功");
     }
     else {
         WCHAR err_w[256];
-        CharToWChar(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
+        GBKtoU16(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
         AddLog(hWnd, err_w);
     }
 
@@ -612,13 +597,13 @@ DWORD WINAPI HandleInstallSourceMetaMod(LPVOID param) {
 
     // 将命令输出从UTF-8转换为宽字符并打印到日志
     WCHAR output_w[4096];
-    CharToWChar_ser(output, output_w, sizeof(output_w) / sizeof(WCHAR));
+    GBKtoU16(output, output_w, sizeof(output_w) / sizeof(WCHAR));
     AddLog(hWnd, output_w);
 
     // 如果命令执行失败，额外打印错误信息
     if (!success) {
         WCHAR err_msg_w[256];
-        CharToWChar_ser(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
+        GBKtoU16(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
         AddLog(hWnd, L"安装过程中出现错误:");
         AddLog(hWnd, err_msg_w);
     }

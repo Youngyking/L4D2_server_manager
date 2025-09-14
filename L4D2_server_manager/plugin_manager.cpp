@@ -7,6 +7,7 @@
 #include "plugin_manager.h"
 #include "cJSON.h"
 #include "config.h"
+#include "encoding_convert.h"
 #include <shlwapi.h>
 #include <vector>
 #include <string>
@@ -29,17 +30,6 @@
 
 // 全局SSH上下文
 extern L4D2_SSH_Context* g_ssh_ctx;
-
-// 字符串转换辅助函数
-static WCHAR* CharToWChar_ser(const char* str, WCHAR* out, int out_len) {
-    MultiByteToWideChar(CP_ACP, 0, str, -1, out, out_len);
-    return out;
-}
-
-static char* WCharToChar_ser(const WCHAR* wstr, char* out, int out_len) {
-    WideCharToMultiByte(CP_ACP, 0, wstr, -1, out, out_len, NULL, NULL);
-    return out;
-}
 
 // 插件窗口消息处理
 LRESULT CALLBACK PluginWindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -266,7 +256,7 @@ void UpdatePluginLists(HWND hWnd) {
 
     if (!success) {
         WCHAR err_w[256];
-        CharToWChar_ser(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
+        GBKtoU16(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
         MessageBoxW(hWnd, err_w, L"获取插件列表失败", MB_ICONERROR);
         return;
     }
@@ -316,7 +306,7 @@ void UpdatePluginLists(HWND hWnd) {
         item.mask = LVIF_TEXT;
         item.iItem = i;
         WCHAR name[256];
-        item.pszText = CharToWChar_ser(available_plugins[i].c_str(), name, 256);
+        item.pszText = GBKtoU16(available_plugins[i].c_str(), name, 256);
         ListView_InsertItem(hAvailable, &item);
     }
 
@@ -328,7 +318,7 @@ void UpdatePluginLists(HWND hWnd) {
         item.mask = LVIF_TEXT;
         item.iItem = i;
         WCHAR name[256];
-        item.pszText = CharToWChar_ser(installed_plugins[i].c_str(), name, 256);
+        item.pszText = GBKtoU16(installed_plugins[i].c_str(), name, 256);
         ListView_InsertItem(hInstalled, &item);
     }
 }
@@ -401,7 +391,7 @@ void OnUploadPlugins(HWND hWnd) {
 
     // 转换插件名称为多字节字符串
     char plugin_name[256];
-    WCharToChar_ser(plugin_name_w, plugin_name, sizeof(plugin_name));
+    U16toGBK(plugin_name_w, plugin_name, sizeof(plugin_name));
 
     // 服务器端目标目录：使用配置的根路径
     std::string remoteRoot = GetRemoteRootPath();
@@ -414,7 +404,7 @@ void OnUploadPlugins(HWND hWnd) {
     char err_msg[256] = { 0 };
     if (!l4d2_ssh_exec_command(g_ssh_ctx, cmd, output, sizeof(output), err_msg, sizeof(err_msg))) {
         WCHAR err_w[256];
-        CharToWChar_ser(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
+        GBKtoU16(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
         MessageBoxW(hWnd, err_w, L"创建远程目录失败", MB_ICONERROR);
         return;
     }
@@ -453,7 +443,7 @@ static bool UploadDirectory(HWND hWnd, const WCHAR* local_dir, const std::string
 
             // 构建远程子目录路径
             char subdir_name[256];
-            WCharToChar_ser(find_data.cFileName, subdir_name, sizeof(subdir_name));
+            U16toGBK(find_data.cFileName, subdir_name, sizeof(subdir_name));
             std::string remote_subdir = remote_dir + "/" + subdir_name;
 
             // 创建远程子目录
@@ -478,18 +468,18 @@ static bool UploadDirectory(HWND hWnd, const WCHAR* local_dir, const std::string
 
             // 构建远程文件路径
             char filename[256];
-            WCharToChar_ser(find_data.cFileName, filename, sizeof(filename));
+            U16toGBK(find_data.cFileName, filename, sizeof(filename));
             std::string remote_file = remote_dir + "/" + filename;
 
             // 转换本地路径为多字节
             char local_path[512];
-            WCharToChar_ser(local_file, local_path, sizeof(local_path));
+            U16toGBK(local_file, local_path, sizeof(local_path));
 
             // 上传文件
             char err_msg[256] = { 0 };
             if (!upload_file_normal(g_ssh_ctx->session, local_path, remote_file.c_str(), err_msg, sizeof(err_msg))) {
                 WCHAR err_w[256];
-                CharToWChar_ser(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
+                GBKtoU16(err_msg, err_w, sizeof(err_w) / sizeof(WCHAR));
                 MessageBoxW(hWnd, err_w, L"文件上传失败", MB_ICONWARNING);
                 result = false;
             }
@@ -524,7 +514,7 @@ void OnInstallPlugin(HWND hWnd) {
     for (const auto& pluginW : checkedPlugins) {
         // 转换为多字节
         char pluginName[256];
-        WCharToChar_ser(pluginW.c_str(), pluginName, sizeof(pluginName));
+        U16toGBK(pluginW.c_str(), pluginName, sizeof(pluginName));
 
         // 执行安装命令
         char cmd[512];
@@ -539,8 +529,8 @@ void OnInstallPlugin(HWND hWnd) {
         }
         else {
             WCHAR errW[256], pluginNameW[256];
-            CharToWChar_ser(err_msg, errW, sizeof(errW) / sizeof(WCHAR));
-            CharToWChar_ser(pluginName, pluginNameW, sizeof(pluginNameW) / sizeof(WCHAR));
+            GBKtoU16(err_msg, errW, sizeof(errW) / sizeof(WCHAR));
+            GBKtoU16(pluginName, pluginNameW, sizeof(pluginNameW) / sizeof(WCHAR));
 
             WCHAR msg[512];
             swprintf_s(msg, L"安装插件 %s 失败: %s", pluginNameW, errW);
@@ -587,7 +577,7 @@ void OnUninstallPlugin(HWND hWnd) {
     for (const auto& pluginW : checkedPlugins) {
         // 转换为多字节
         char pluginName[256];
-        WCharToChar_ser(pluginW.c_str(), pluginName, sizeof(pluginName));
+        U16toGBK(pluginW.c_str(), pluginName, sizeof(pluginName));
 
         // 执行卸载命令
         char cmd[512];
@@ -602,8 +592,8 @@ void OnUninstallPlugin(HWND hWnd) {
         }
         else {
             WCHAR errW[256], pluginNameW[256];
-            CharToWChar_ser(err_msg, errW, sizeof(errW) / sizeof(WCHAR));
-            CharToWChar_ser(pluginName, pluginNameW, sizeof(pluginNameW) / sizeof(WCHAR));
+            GBKtoU16(err_msg, errW, sizeof(errW) / sizeof(WCHAR));
+            GBKtoU16(pluginName, pluginNameW, sizeof(pluginNameW) / sizeof(WCHAR));
 
             WCHAR msg[512];
             swprintf_s(msg, L"卸载插件 %s 失败: %s", pluginNameW, errW);
@@ -649,7 +639,7 @@ void OnDeleteAvailablePlugin(HWND hWnd) {
     for (const auto& pluginW : checkedPlugins) {
         // 转换为多字节
         char pluginName[256];
-        WCharToChar_ser(pluginW.c_str(), pluginName, sizeof(pluginName));
+        U16toGBK(pluginW.c_str(), pluginName, sizeof(pluginName));
 
         // 执行删除命令
         char cmd[512];
@@ -664,8 +654,8 @@ void OnDeleteAvailablePlugin(HWND hWnd) {
         }
         else {
             WCHAR errW[256], pluginNameW[256];
-            CharToWChar_ser(err_msg, errW, sizeof(errW) / sizeof(WCHAR));
-            CharToWChar_ser(pluginName, pluginNameW, sizeof(pluginNameW) / sizeof(WCHAR));
+            GBKtoU16(err_msg, errW, sizeof(errW) / sizeof(WCHAR));
+            GBKtoU16(pluginName, pluginNameW, sizeof(pluginNameW) / sizeof(WCHAR));
 
             WCHAR msg[512];
             swprintf_s(msg, L"删除插件 %s 失败: %s", pluginNameW, errW);

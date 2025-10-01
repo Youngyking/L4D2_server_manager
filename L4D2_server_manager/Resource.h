@@ -44,5 +44,6 @@
 #define IDC_L4D2SERVERMANAGER 104  // 主窗口类名ID
 #define IDC_KEY_PROMPT       105
 #define IDC_PORT_EDIT_SSH    106
+#define IDC_ADMIN_CONFIG_BTN 109
 
 #endif 

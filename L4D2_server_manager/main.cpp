@@ -15,6 +15,9 @@
 #include "plugin_manager.h"
 #include "map_manager.h"
 #include "config.h"
+#include "cJSON.h"
+#include "encoding_convert.h"
+#include "admin_manager.h"
 #include <fcntl.h>
 #include <string.h>
 #include <string>
@@ -153,7 +156,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
     // 创建主窗口（固定初始大小为1024x600）
     HWND hWnd = CreateWindowW(szWindowClass, szTitle,
         WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME & ~WS_MAXIMIZEBOX,
-        CW_USEDEFAULT, 0, 1024, 600, nullptr, nullptr, hInstance, nullptr);
+        CW_USEDEFAULT, 0, 1024, 620, nullptr, nullptr, hInstance, nullptr);
 
     if (!hWnd)
     {
@@ -251,6 +254,50 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             }
             break;
         }
+                                  // 在消息处理函数的WM_COMMAND部分添加
+        case IDC_ADMIN_CONFIG_BTN:
+            // 检查SourceMod是否已安装
+        {
+            std::string remoteRoot = GetRemoteRootPath();
+            std::string command = remoteRoot + "/L4D2_Manager_API.sh get_status";
+
+            char output[8192] = { 0 };
+            char err_msg[256] = { 0 };
+
+            bool success = l4d2_ssh_exec_command(
+                g_ssh_ctx,
+                command.c_str(),
+                output, sizeof(output),
+                err_msg, sizeof(err_msg)
+            );
+
+            if (success) {
+                cJSON* root = cJSON_Parse(output);
+                if (root) {
+                    cJSON* smInstalled = cJSON_GetObjectItem(root, "smInstalled");
+                    bool smStatus = (smInstalled && smInstalled->type == cJSON_True);
+
+                    cJSON_Delete(root);
+
+                    if (smStatus) {
+                        // SourceMod已安装，打开管理员配置窗口
+                        CreateThread(NULL, 0, HandleManageAdmin, hWnd, 0, NULL);
+                    }
+                    else {
+                        AddLog(hWnd, L"sourcemod未安装，无法设置管理员");
+                    }
+                }
+                else {
+                    AddLog(hWnd, L"解析系统状态JSON失败");
+                }
+            }
+            else {
+                WCHAR err_msg_w[256];
+                GBKtoU16(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
+                AddLog(hWnd, err_msg_w);
+            }
+        }
+        break;
         default:
             return DefWindowProc(hWnd, message, wParam, lParam);
         }

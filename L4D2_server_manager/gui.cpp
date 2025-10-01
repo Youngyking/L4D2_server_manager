@@ -69,7 +69,7 @@ void CreateAllControls(HWND hWnd, HINSTANCE hInst) {
     // 1.4 连接按钮（修改文本）
     CreateWindowW(L"BUTTON", L"使用密码/密钥登录",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        860, 60, 120, 25, hWnd, (HMENU)IDC_CONNECT_BTN, hInst, NULL);  // 调整位置和文本
+        860, 60, 130, 25, hWnd, (HMENU)IDC_CONNECT_BTN, hInst, NULL);  // 调整位置和文本
 
     // 1.5 连接状态
     CreateWindowW(L"STATIC", L"未连接",
@@ -130,6 +130,13 @@ void CreateAllControls(HWND hWnd, HINSTANCE hInst) {
     CreateWindowW(L"BUTTON", L"安装SourceMod与MetaMod",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
         30, 490, 440, 30, hWnd, (HMENU)IDC_UPLOAD_SMM_BTN, hInst, NULL);  // 调整位置
+
+    CreateWindowW(
+        L"BUTTON", L"服务器管理员配置",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        250, 290, 180, 30,  // 位置和大小，根据实际界面调整
+        hWnd, (HMENU)IDC_ADMIN_CONFIG_BTN, hInst, NULL
+    );
 
     // 3. 服务器实例面板
     CreateWindowW(L"BUTTON", L"服务器实例",

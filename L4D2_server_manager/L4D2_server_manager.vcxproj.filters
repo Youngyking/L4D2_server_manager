@@ -45,6 +45,9 @@
     <ClInclude Include="encoding_convert.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="admin_manager.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -75,6 +78,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="encoding_convert.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="admin_manager.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

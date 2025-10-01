@@ -133,6 +133,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="admin_manager.h" />
     <ClInclude Include="cJSON.h" />
     <ClInclude Include="config.h" />
     <ClInclude Include="encoding_convert.h" />
@@ -145,6 +146,7 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="admin_manager.cpp" />
     <ClCompile Include="cJSON.cpp" />
     <ClCompile Include="config.cpp" />
     <ClCompile Include="encoding_convert.cpp" />

@@ -55,6 +55,9 @@ PluginSourceDir="$ScriptDir/Available_Plugins"
 ReceiptsDir="$ScriptDir/Installed_Receipts"
 InstallerDir="$ScriptDir/SourceMod_Installers"
 
+# SourceMod管理员配置文件路径
+ADMINS_CONFIG="$L4d2Dir/addons/sourcemod/configs/admins_simple.ini"
+
 # 确保目录存在
 mkdir -p "$PluginSourceDir" "$ReceiptsDir" "$InstallerDir" "$ServerRoot"
 
@@ -278,6 +281,13 @@ function Install-SourceModAndMetaMod_NonInteractive() {
         echo "发现 SourceMod: $(basename "$sourcemod_tar")"
         if tar -xzf "$sourcemod_tar" -C "$L4d2Dir"; then
             echo "SourceMod 解压完成。"
+            # 确保管理员配置文件存在
+            if [ ! -f "$ADMINS_CONFIG" ]; then
+                mkdir -p "$(dirname "$ADMINS_CONFIG")"
+                echo "; 由 L4D2_Manager_API.sh 创建" > "$ADMINS_CONFIG"
+                echo "; 格式: <SteamID|Name> <权限标志>" >> "$ADMINS_CONFIG"
+                echo "; 示例: STEAM_0:1:123456 99:z" >> "$ADMINS_CONFIG"
+            fi
         else
             echo "错误: 解压 SourceMod 时出错。"
             return 1
@@ -421,6 +431,116 @@ function Uninstall-Map() {
     echo "地图 '$mapName' 卸载成功"
 }
 
+# --- 管理员管理函数 ---
+function Get-Admins() {
+    # 检查管理员配置文件是否存在
+    if [ ! -f "$ADMINS_CONFIG" ]; then
+        echo "[]"
+        return 0
+    fi
+    
+    # 解析管理员配置文件，忽略注释和空行
+    echo -n "["
+    local first=true
+    while IFS= read -r line; do
+        # 跳过以下行：
+        # 1. 以//开头的注释（允许前面有空格）
+        # 2. 空行
+        # 3. 纯空格行
+        [[ "$line" =~ ^[[:space:]]*// || -z "$line" || "$line" =~ ^[[:space:]]+$ ]] && continue
+        
+        # 提取管理员信息和权限（适配引号包裹的格式，如"STEAM_0:1:16" "bce"）
+        # 使用awk提取第一个和第二个字段（忽略引号）
+        local admin_info=$(echo "$line" | awk -F'"' '{gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2}')
+        local admin_flags=$(echo "$line" | awk -F'"' '{gsub(/^[[:space:]]+|[[:space:]]+$/, "", $4); print $4}')
+        
+        # 只保留有有效信息的行（排除配置示例中的注释行）
+        if [ -n "$admin_info" ] && [ -n "$admin_flags" ]; then
+            if ! $first; then
+                echo -n ","
+            fi
+            # 对特殊字符进行JSON转义
+            admin_info=$(echo "$admin_info" | sed 's/"/\\"/g')
+            admin_flags=$(echo "$admin_flags" | sed 's/"/\\"/g')
+            echo -n "{\"name\": \"$admin_info\", \"flags\": \"$admin_flags\"}"
+            first=false
+        fi
+    done < "$ADMINS_CONFIG"
+    echo "]"
+}
+
+function New-Admin() {
+    local admin_id="$1"
+    local permission_bits="$2"
+    
+    # 验证输入
+    if [ -z "$admin_id" ] || [ -z "$permission_bits" ]; then
+        echo "错误: 管理员ID和权限位不能为空" >&2
+        exit 1
+    fi
+    
+    # 验证权限位长度为8
+    if [ ${#permission_bits} -ne 8 ]; then
+        echo "错误: 权限位必须为8位" >&2
+        exit 1
+    fi
+    
+    # 权限位映射 (8个核心权限)
+    # 0: 保留权限 (z)
+    # 1: 管理员菜单 (a)
+    # 2: 踢人权限 (b)
+    # 3: 封禁权限 (c)
+    # 4: 地图管理 (d)
+    # 5: 服务器设置 (e)
+    # 6: 插件管理 (f)
+    # 7: 作弊权限 (h)
+    local flag_map=(z a b c d e f h)
+    local flags=""
+    
+    # 根据权限位计算权限标志
+    for ((i=0; i<8; i++)); do
+        if [ "${permission_bits:i:1}" = "1" ]; then
+            flags+="${flag_map[$i]}"
+        fi
+    done
+    
+    # 如果没有选择任何权限，至少给予基本权限
+    if [ -z "$flags" ]; then
+        flags="a"
+    fi
+    
+    # 添加到管理员配置文件
+    echo "\"$admin_id\" \"99:$flags\"" >> "$ADMINS_CONFIG"
+    
+    echo "管理员 '$admin_id' 创建成功，权限: $flags"
+}
+
+function Remove-Admin() {
+    local admin_id="$1"
+    
+    if [ -z "$admin_id" ]; then
+        echo "错误: 管理员ID不能为空" >&2
+        exit 1
+    fi
+    
+    if [ ! -f "$ADMINS_CONFIG" ]; then
+        echo "错误: 管理员配置文件不存在" >&2
+        exit 1
+    fi
+    
+    # 创建临时文件
+    local temp_file=$(mktemp)
+    
+    # 删除匹配的管理员行
+    # 匹配带引号的管理员 ID（如 "yy11yy"），同时兼容可能的空格
+    grep -v "^[[:space:]]*\"$admin_id\"[[:space:]]" "$ADMINS_CONFIG" > "$temp_file"
+    
+    # 替换原文件
+    mv "$temp_file" "$ADMINS_CONFIG"
+    
+    echo "管理员 '$admin_id' 已删除"
+}
+
 # --- JSON生成辅助函数 ---
 json_escape() {
     printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'
@@ -525,6 +645,19 @@ case "$ACTION" in
     
     uninstall_map)
         Uninstall-Map "$1"
+        ;;
+    
+    # 管理员管理API
+    get_admin)
+        Get-Admins
+        ;;
+    
+    new_admin)
+        New-Admin "$1" "$2"
+        ;;
+    
+    rm_admin)
+        Remove-Admin "$1"
         ;;
     
     # --- 文件管理指令 ---

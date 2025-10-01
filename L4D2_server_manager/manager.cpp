@@ -33,18 +33,30 @@ std::map<std::string, std::string> g_portToInstance;
 // 处理SSH连接请求（线程函数）
 DWORD WINAPI HandleConnectRequest(LPVOID param) {
     HWND hWnd = (HWND)param;
-    WCHAR ip_w[64], user_w[64], pass_w[64];
-    char ip[64], user[64], pass[64], err_msg[256];
+    WCHAR ip_w[64], user_w[64], pass_w[64], port_w[16];
+    char ip[64], user[64], pass[64], port[16], err_msg[256];
+    int port_num = 22;  // 默认端口
 
     // 获取输入框内容
     GetWindowTextW(GetDlgItem(hWnd, IDC_IP_EDIT), ip_w, sizeof(ip_w) / sizeof(WCHAR));
     GetWindowTextW(GetDlgItem(hWnd, IDC_USER_EDIT), user_w, sizeof(user_w) / sizeof(WCHAR));
     GetWindowTextW(GetDlgItem(hWnd, IDC_PASS_EDIT), pass_w, sizeof(pass_w) / sizeof(WCHAR));
+    GetWindowTextW(GetDlgItem(hWnd, IDC_PORT_EDIT_SSH), port_w, sizeof(port_w) / sizeof(WCHAR));  // 获取端口
 
     // 转换为多字节
     U16toGBK(ip_w, ip, sizeof(ip));
     U16toGBK(user_w, user, sizeof(user));
     U16toGBK(pass_w, pass, sizeof(pass));
+    U16toGBK(port_w, port, sizeof(port));
+
+    // 解析端口号
+    if (strlen(port) > 0) {
+        port_num = atoi(port);
+        if (port_num <= 0 || port_num > 65535) {
+            AddLog(hWnd, L"无效的端口号，使用默认端口22");
+            port_num = 22;
+        }
+    }
 
     // 初始化SSH
     if (g_ssh_ctx) {
@@ -57,9 +69,83 @@ DWORD WINAPI HandleConnectRequest(LPVOID param) {
         return 0;
     }
 
+    // 检查ssh_key文件夹是否存在，不存在则创建
+    bool use_key_auth = false;
+    char key_dir[MAX_PATH] = "ssh_key";
+    char key_path[MAX_PATH] = { 0 };
+
+    // 检查并创建ssh_key目录
+    if (!CreateDirectoryA(key_dir, NULL) && GetLastError() != ERROR_ALREADY_EXISTS) {
+        AddLog(hWnd, L"创建ssh_key文件夹失败，将使用密码登录");
+    }
+    else {
+        // 查找ssh_key目录中的第一个文件作为私钥
+        WIN32_FIND_DATAA findData;
+        // 拼接路径（key_dir + "\*"）
+        char search_path[MAX_PATH];
+        sprintf_s(search_path, MAX_PATH, "%s\\*", key_dir);  // 使用 sprintf_s 安全拼接
+
+        // 正确调用 FindFirstFileA
+        HANDLE hFind = FindFirstFileA(search_path, &findData);
+
+        if (hFind != INVALID_HANDLE_VALUE) {
+            do {
+                // 跳过目录和当前/上级目录
+                if (!(findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
+                    strcmp(findData.cFileName, ".") != 0 &&
+                    strcmp(findData.cFileName, "..") != 0) {
+
+                    // 找到第一个文件，作为私钥
+                    sprintf_s(key_path, MAX_PATH, "%s\\%s", key_dir, findData.cFileName);
+                    use_key_auth = true;
+                    break;
+                }
+            } while (FindNextFileA(hFind, &findData));
+
+            FindClose(hFind);
+        }
+
+        if (use_key_auth) {
+            WCHAR key_path_w[MAX_PATH];
+            GBKtoU16(key_path, key_path_w, MAX_PATH);
+            AddLog(hWnd, L"找到私钥文件，将使用密钥登录:");
+            AddLog(hWnd, key_path_w);
+        }
+        else {
+            AddLog(hWnd, L"ssh_key文件夹中未找到私钥文件，将使用密码登录");
+        }
+    }
+
     // 连接服务器
     AddLog(hWnd, L"正在连接到服务器...");
-    bool success = l4d2_ssh_connect(g_ssh_ctx, ip, user, pass, err_msg, sizeof(err_msg));
+    bool success = false;
+
+    if (use_key_auth) {
+        // 使用密钥登录
+        success = l4d2_ssh_connect_with_key(
+            g_ssh_ctx,
+            ip,
+            port_num,
+            user,
+            key_path,
+            pass,
+            err_msg,
+            sizeof(err_msg)
+        );
+    }
+    else {
+        // 使用密码登录
+        success = l4d2_ssh_connect(
+            g_ssh_ctx,
+            ip,
+            port_num,
+            user,
+            pass,
+            err_msg,
+            sizeof(err_msg)
+        );
+    }
+
     WCHAR err_msg_w[256];
     GBKtoU16(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
     AddLog(hWnd, err_msg_w);
@@ -105,6 +191,8 @@ DWORD WINAPI HandleConnectRequest(LPVOID param) {
 
     return 0;
 }
+
+
 
 // 启动实例处理函数
 DWORD WINAPI HandleStartInstance(LPVOID param) {

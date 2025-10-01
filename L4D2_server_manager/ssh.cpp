@@ -229,36 +229,109 @@ L4D2_SSH_Context* l4d2_ssh_init() {
     return ctx;
 }
 
-// 连接到SSH服务器
-bool l4d2_ssh_connect(L4D2_SSH_Context* ctx, const char* ip, const char* user, const char* pass, char* err_msg, int err_len) {
-    if (!ctx || !ctx->session) {
-        snprintf(err_msg, err_len, "SSH上下文未初始化");
+
+// 支持IP+端口+密码的SSH连接函数
+bool l4d2_ssh_connect(L4D2_SSH_Context* ctx, const char* ip, int port_num,
+    const char* user, const char* pass,
+    char* err_msg, int err_len) {
+    // 参数合法性检查
+    if (!ctx || !ctx->session || !ip || !user) {
+        snprintf(err_msg, err_len, "无效的参数（上下文或会话未初始化）");
         return false;
     }
 
-    // 设置连接参数
-    ssh_options_set(ctx->session, SSH_OPTIONS_HOST, ip);
-    ssh_options_set(ctx->session, SSH_OPTIONS_USER, user);
+    // 设置SSH连接选项（主机、端口、用户名）
+    ssh_options_set(ctx->session, SSH_OPTIONS_HOST, ip);               // 设置IP地址
+    ssh_options_set(ctx->session, SSH_OPTIONS_PORT, &port_num);        // 设置端口（注意传地址）
+    ssh_options_set(ctx->session, SSH_OPTIONS_USER, user);             // 设置用户名
 
-    // 建立连接
+    // 建立TCP连接
     int rc = ssh_connect(ctx->session);
     if (rc != SSH_OK) {
-        snprintf(err_msg, err_len, "连接失败: %s", ssh_get_error(ctx->session));
+        snprintf(err_msg, err_len, "TCP连接失败: %s（IP: %s, 端口: %d）",
+            ssh_get_error(ctx->session), ip, port_num);
         return false;
     }
 
     // 密码认证
     rc = ssh_userauth_password(ctx->session, NULL, pass);
     if (rc != SSH_AUTH_SUCCESS) {
-        snprintf(err_msg, err_len, "认证失败: %s", ssh_get_error(ctx->session));
+        snprintf(err_msg, err_len, "密码认证失败: %s（用户: %s）",
+            ssh_get_error(ctx->session), user);
+        ssh_disconnect(ctx->session);  // 认证失败需断开连接
+        return false;
+    }
+
+    // 连接成功
+    ctx->is_connected = true;
+    snprintf(err_msg, err_len, "密码认证成功（IP: %s, 端口: %d, 用户: %s）",
+        ip, port_num, user);
+    return true;
+}
+
+
+// 使用密钥连接
+bool l4d2_ssh_connect_with_key(L4D2_SSH_Context* ctx, const char* ip, int port,
+    const char* user, const char* key_path,
+    const char* key_pass,  // 新增：密钥密码（可为NULL）
+    char* err_msg, int err_len) {
+    if (!ctx || !ctx->session || !ip || !user || !key_path) {
+        snprintf(err_msg, err_len, "无效的参数（上下文、会话或路径为空）");
+        return false;
+    }
+
+    // 1. 检查密钥文件是否存在
+    FILE* key_file = fopen(key_path, "r");
+    if (!key_file) {
+        snprintf(err_msg, err_len, "无法打开私钥文件: %s", strerror(errno));
+        return false;
+    }
+    fclose(key_file);
+
+    // 2. 设置连接参数
+    ssh_options_set(ctx->session, SSH_OPTIONS_HOST, ip);
+    ssh_options_set(ctx->session, SSH_OPTIONS_PORT, &port);
+    ssh_options_set(ctx->session, SSH_OPTIONS_USER, user);
+
+    // 3. 建立TCP连接
+    int rc = ssh_connect(ctx->session);
+    if (rc != SSH_OK) {
+        snprintf(err_msg, err_len, "TCP连接失败: %s", ssh_get_error(ctx->session));
+        return false;
+    }
+
+    // 4. 手动读取私钥（使用密钥密码解锁）
+    ssh_key priv_key = NULL;
+    rc = ssh_pki_import_privkey_file(
+        key_path,          // 私钥文件路径
+        key_pass,          // 新增：使用传入的密钥密码解锁（无密码则为NULL）
+        NULL, NULL,        // 回调函数（无需处理时为NULL）
+        &priv_key          // 输出：解析后的私钥
+    );
+    if (rc != SSH_OK) {
+        snprintf(err_msg, err_len, "解析私钥失败（密码错误或密钥损坏）: %s",
+            ssh_get_error(ctx->session));
         ssh_disconnect(ctx->session);
         return false;
     }
 
+    // 5. 使用解析后的私钥进行认证
+    rc = ssh_userauth_publickey(ctx->session, user, priv_key);
+    ssh_key_free(priv_key);  // 释放私钥资源
+
+    if (rc != SSH_AUTH_SUCCESS) {
+        snprintf(err_msg, err_len, "密钥认证失败: %s", ssh_get_error(ctx->session));
+        ssh_disconnect(ctx->session);
+        return false;
+    }
+
+    // 6. 认证成功
     ctx->is_connected = true;
-    snprintf(err_msg, err_len, "连接成功");
+    snprintf(err_msg, err_len, "密钥认证成功（IP: %s, 端口: %d, 用户: %s）",
+        ip, port, user);
     return true;
 }
+
 
 // 检查远程目录是否存在
 bool check_remote_dir(ssh_session session, const char* dir, char* err_msg, int err_len) {

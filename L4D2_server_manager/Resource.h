@@ -42,5 +42,7 @@
 #define IDI_SMALL            108   // 应用程序小图标ID
 #define IDS_APP_TITLE        103   // 应用程序标题字符串ID
 #define IDC_L4D2SERVERMANAGER 104  // 主窗口类名ID
+#define IDC_KEY_PROMPT       105
+#define IDC_PORT_EDIT_SSH    106
 
 #endif 

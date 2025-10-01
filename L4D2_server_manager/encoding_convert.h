@@ -11,7 +11,7 @@ char* U16toGBK(LPCWSTR wstr, char* buf, int buf_len);
 WCHAR* GBKtoU16(const char* str, WCHAR* buf, int buf_len);
 
 // 将一段数据视为UTF-16编码，将其转化为UTF-8编码并返回
-static char* U16toU8(LPCWSTR wstr, char* buf, int buf_len);
+char* U16toU8(LPCWSTR wstr, char* buf, int buf_len);
 
 
 WCHAR* U8toU16(const char* str, WCHAR* buf, int buf_len);

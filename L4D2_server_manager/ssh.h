@@ -29,8 +29,16 @@ bool upload_file_txt(ssh_session session, const char* local_path, const char* re
 // 上传文件到远程服务器（一般文件）
 bool upload_file_normal(ssh_session session, const char* local_path, const char* remote_path, char* err_msg, int err_len);
 
-// 连接到SSH服务器
-bool l4d2_ssh_connect(L4D2_SSH_Context* ctx, const char* ip, const char* user, const char* pass, char* err_msg, int err_len);
+// 支持IP+端口+密码的SSH连接函数
+bool l4d2_ssh_connect(L4D2_SSH_Context* ctx, const char* ip, int port_num,
+    const char* user, const char* pass,
+    char* err_msg, int err_len);
+
+// 支持密钥连接到SSH服务器
+bool l4d2_ssh_connect_with_key(L4D2_SSH_Context* ctx, const char* ip, int port,
+    const char* user, const char* key_path,
+    const char* key_pass,  
+    char* err_msg, int err_len);
 
 // 检查并上传API脚本（核心功能）
 bool l4d2_ssh_upload_api_script(L4D2_SSH_Context* ctx, char* err_msg, int err_len);

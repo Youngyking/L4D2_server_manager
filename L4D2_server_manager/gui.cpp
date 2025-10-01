@@ -32,7 +32,7 @@ void CreateAllControls(HWND hWnd, HINSTANCE hInst) {
     // 1. SSH连接区
     CreateWindowW(L"BUTTON", L"SSH连接设置",
         WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
-        10, 10, 980, 80, hWnd, (HMENU)IDC_SSH_GROUP, hInst, NULL);
+        10, 10, 980, 100, hWnd, (HMENU)IDC_SSH_GROUP, hInst, NULL);  // 增加高度以容纳新元素
 
     // 1.1 IP地址输入
     CreateWindowW(L"STATIC", L"服务器IP:",
@@ -40,93 +40,106 @@ void CreateAllControls(HWND hWnd, HINSTANCE hInst) {
         30, 30, 80, 20, hWnd, NULL, hInst, NULL);
     CreateWindowW(L"EDIT", L"xxx.xxx.xxx.xxx",
         WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-        120, 30, 200, 25, hWnd, (HMENU)IDC_IP_EDIT, hInst, NULL);
+        120, 30, 150, 25, hWnd, (HMENU)IDC_IP_EDIT, hInst, NULL);  // 缩短宽度以给端口框留出空间
+
+    // 1.1.1 SSH端口输入（新增）
+    CreateWindowW(L"STATIC", L"端口:",
+        WS_CHILD | WS_VISIBLE | SS_LEFT,
+        290, 30, 50, 20, hWnd, NULL, hInst, NULL);
+    CreateWindowW(L"EDIT", L"22",  // 默认端口22
+        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
+        340, 30, 80, 25, hWnd, (HMENU)IDC_PORT_EDIT_SSH, hInst, NULL);  // 新增端口输入框
 
     // 1.2 用户名输入
     CreateWindowW(L"STATIC", L"用户名:",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
-        350, 30, 80, 20, hWnd, NULL, hInst, NULL);
+        440, 30, 80, 20, hWnd, NULL, hInst, NULL);  // 调整位置
     CreateWindowW(L"EDIT", L"root",
         WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-        440, 30, 150, 25, hWnd, (HMENU)IDC_USER_EDIT, hInst, NULL);
+        530, 30, 150, 25, hWnd, (HMENU)IDC_USER_EDIT, hInst, NULL);  // 调整位置
 
     // 1.3 密码输入
     CreateWindowW(L"STATIC", L"密码:",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
-        620, 30, 80, 20, hWnd, NULL, hInst, NULL);
+        700, 30, 80, 20, hWnd, NULL, hInst, NULL);  // 调整位置
     CreateWindowW(L"EDIT", L"",
         WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL | ES_PASSWORD,
-        700, 30, 150, 25, hWnd, (HMENU)IDC_PASS_EDIT, hInst, NULL);
+        780, 30, 150, 25, hWnd, (HMENU)IDC_PASS_EDIT, hInst, NULL);  // 调整位置
 
-    // 1.4 连接按钮
-    CreateWindowW(L"BUTTON", L"连接服务器",
+    // 1.4 连接按钮（修改文本）
+    CreateWindowW(L"BUTTON", L"使用密码/密钥登录",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        880, 30, 100, 25, hWnd, (HMENU)IDC_CONNECT_BTN, hInst, NULL);
+        860, 60, 120, 25, hWnd, (HMENU)IDC_CONNECT_BTN, hInst, NULL);  // 调整位置和文本
 
     // 1.5 连接状态
     CreateWindowW(L"STATIC", L"未连接",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
         30, 60, 200, 20, hWnd, (HMENU)IDC_CONN_STATUS, hInst, NULL);
 
+    // 1.6 密钥登录提示（新增）
+    CreateWindowW(L"STATIC", L"密钥登录需要将私钥放于根目录的ssh_key文件夹，密钥若需要口令则在密码栏中填入。",
+        WS_CHILD | WS_VISIBLE | SS_LEFT,
+        30, 85, 800, 20, hWnd, (HMENU)IDC_KEY_PROMPT, hInst, NULL);
+
     // 2. 系统状态面板（调整高度以完全包含所有按钮）
     CreateWindowW(L"BUTTON", L"系统状态 & 核心操作",
         WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
-        10, 100, 480, 420, hWnd, (HMENU)IDC_STATUS_GROUP, hInst, NULL);
+        10, 120, 480, 420, hWnd, (HMENU)IDC_STATUS_GROUP, hInst, NULL);  // 调整位置
 
     // 2.1 状态显示（5条信息）
     // 服务器文件状态
     CreateWindowW(L"STATIC", L"服务器文件:",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
-        30, 130, 100, 30, hWnd, NULL, hInst, NULL);
+        30, 150, 100, 30, hWnd, NULL, hInst, NULL);  // 调整位置
     CreateWindowW(L"STATIC", L"未部署",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
-        140, 130, 100, 30, hWnd, (HMENU)IDC_SERVER_STATUS, hInst, NULL);
+        140, 150, 100, 30, hWnd, (HMENU)IDC_SERVER_STATUS, hInst, NULL);  // 调整位置
 
     // SourceMod状态
     CreateWindowW(L"STATIC", L"SourceMod:",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
-        30, 200, 100, 30, hWnd, NULL, hInst, NULL);
+        30, 220, 100, 30, hWnd, NULL, hInst, NULL);  // 调整位置
     CreateWindowW(L"STATIC", L"未安装",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
-        140, 200, 100, 30, hWnd, (HMENU)IDC_SM_STATUS, hInst, NULL);
+        140, 220, 100, 30, hWnd, (HMENU)IDC_SM_STATUS, hInst, NULL);  // 调整位置
 
     // MetaMod状态
     CreateWindowW(L"STATIC", L"MetaMod:",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
-        30, 270, 100, 30, hWnd, NULL, hInst, NULL);
+        30, 290, 100, 30, hWnd, NULL, hInst, NULL);  // 调整位置
     CreateWindowW(L"STATIC", L"未安装",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
-        140, 270, 100, 30, hWnd, (HMENU)IDC_MM_STATUS, hInst, NULL);
+        140, 290, 100, 30, hWnd, (HMENU)IDC_MM_STATUS, hInst, NULL);  // 调整位置
 
     // 2.2 操作按钮
     CreateWindowW(L"BUTTON", L"部署/更新服务器",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        30, 320, 440, 30, hWnd, (HMENU)IDC_DEPLOY_BTN, hInst, NULL);
+        30, 340, 440, 30, hWnd, (HMENU)IDC_DEPLOY_BTN, hInst, NULL);  // 调整位置
 
     // 上传SourceMod按钮
     CreateWindowW(L"BUTTON", L"上传SourceMod",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        30, 370, 440, 30, hWnd, (HMENU)IDC_UPLOAD_SM_BTN, hInst, NULL);
+        30, 390, 440, 30, hWnd, (HMENU)IDC_UPLOAD_SM_BTN, hInst, NULL);  // 调整位置
 
     // 上传MetaMod按钮
     CreateWindowW(L"BUTTON", L"上传MetaMod",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        30, 420, 440, 30, hWnd, (HMENU)IDC_UPLOAD_MM_BTN, hInst, NULL);
+        30, 440, 440, 30, hWnd, (HMENU)IDC_UPLOAD_MM_BTN, hInst, NULL);  // 调整位置
 
     // 安装SourceMod与MetaMod按钮
     CreateWindowW(L"BUTTON", L"安装SourceMod与MetaMod",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        30, 470, 440, 30, hWnd, (HMENU)IDC_UPLOAD_SMM_BTN, hInst, NULL);
+        30, 490, 440, 30, hWnd, (HMENU)IDC_UPLOAD_SMM_BTN, hInst, NULL);  // 调整位置
 
     // 3. 服务器实例面板
     CreateWindowW(L"BUTTON", L"服务器实例",
         WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
-        500, 100, 490, 220, hWnd, (HMENU)IDC_INSTANCE_GROUP, hInst, NULL);
+        500, 120, 490, 220, hWnd, (HMENU)IDC_INSTANCE_GROUP, hInst, NULL);  // 调整位置
 
     // 3.1 实例列表（ListView）
     HWND hInstanceList = CreateWindowW(WC_LISTVIEWW, L"",
         WS_CHILD | WS_VISIBLE | WS_BORDER | LVS_REPORT | LVS_SHOWSELALWAYS,
-        520, 130, 450, 160, hWnd, (HMENU)IDC_INSTANCE_LIST, hInst, NULL);
+        520, 150, 450, 160, hWnd, (HMENU)IDC_INSTANCE_LIST, hInst, NULL);  // 调整位置
     // 设置列表列
     LVCOLUMNW lvc = { 0 };
     lvc.mask = LVCF_TEXT | LVCF_WIDTH;
@@ -158,47 +171,47 @@ void CreateAllControls(HWND hWnd, HINSTANCE hInst) {
     // 3.2 端口输入和操作按钮
     CreateWindowW(L"STATIC", L"端口号:",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
-        520, 300, 60, 20, hWnd, NULL, hInst, NULL);
+        520, 320, 60, 20, hWnd, NULL, hInst, NULL);  // 调整位置
 
     CreateWindowW(L"EDIT", L"27015",  // 默认L4D2端口
         WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-        590, 300, 80, 25, hWnd, (HMENU)IDC_PORT_EDIT, hInst, NULL);
+        590, 320, 80, 25, hWnd, (HMENU)IDC_PORT_EDIT, hInst, NULL);  // 调整位置
 
     CreateWindowW(L"BUTTON", L"启动实例",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        690, 300, 100, 25, hWnd, (HMENU)IDC_START_INSTANCE, hInst, NULL);
+        690, 320, 100, 25, hWnd, (HMENU)IDC_START_INSTANCE, hInst, NULL);  // 调整位置
 
     CreateWindowW(L"BUTTON", L"停止实例",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        810, 300, 100, 25, hWnd, (HMENU)IDC_STOP_INSTANCE, hInst, NULL);
+        810, 320, 100, 25, hWnd, (HMENU)IDC_STOP_INSTANCE, hInst, NULL);  // 调整位置
 
     // 4. 操作与日志面板（放在服务器实例面板下方，与左侧系统状态面板高度匹配）
     CreateWindowW(L"BUTTON", L"插件管理 & 日志",
         WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
-        500, 330, 490, 210, hWnd, (HMENU)IDC_ACTION_GROUP, hInst, NULL);
+        500, 350, 490, 210, hWnd, (HMENU)IDC_ACTION_GROUP, hInst, NULL);  // 调整位置
 
     // 4.1 插件管理按钮
     CreateWindowW(L"BUTTON", L"插件管理",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        520, 360, 140, 30, hWnd, (HMENU)IDC_PLUGIN_BTN, hInst, NULL);
+        520, 380, 140, 30, hWnd, (HMENU)IDC_PLUGIN_BTN, hInst, NULL);  // 调整位置
 
     // 4.2 日志查看按钮
     CreateWindowW(L"BUTTON", L"清除日志",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        680, 360, 140, 30, hWnd, (HMENU)IDC_LOG_BTN, hInst, NULL);
+        680, 380, 140, 30, hWnd, (HMENU)IDC_LOG_BTN, hInst, NULL);  // 调整位置
 
     // 4.3 地图管理按钮
     CreateWindowW(
         L"BUTTON", L"地图管理",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        840, 360, 140, 30,  // 位置在插件管理按钮右侧
+        840, 380, 140, 30,  // 位置在插件管理按钮右侧
         hWnd, (HMENU)IDC_MAP_BTN, hInst, NULL
-    );
+    );  // 调整位置
 
     // 4.4 日志显示框（多行编辑框）
     CreateWindowW(L"EDIT", L"",
         WS_CHILD | WS_VISIBLE | WS_BORDER | WS_VSCROLL | ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY,
-        520, 400, 450, 120, hWnd, (HMENU)IDC_LOG_VIEW, hInst, NULL);
+        520, 420, 450, 120, hWnd, (HMENU)IDC_LOG_VIEW, hInst, NULL);  // 调整位置
 
     HMENU hMenu = CreateMenu();
     HMENU hFileMenu = CreatePopupMenu();

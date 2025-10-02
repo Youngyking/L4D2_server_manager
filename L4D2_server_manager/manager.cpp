@@ -28,7 +28,11 @@
 // 全局端口-实例名称映射表（动态更新）
 std::map<std::string, std::string> g_portToInstance;
 
+// 定义自定义进度更新消息
+#define WM_USER_PROGRESS_UPDATE (WM_USER + 100)  // 使用WM_USER加上偏移量定义自定义消息
 
+// 进度回调函数类型定义
+typedef void (*ProgressCallback)(HWND hWnd, float progress);
 
 // 处理SSH连接请求（线程函数）
 DWORD WINAPI HandleConnectRequest(LPVOID param) {
@@ -41,7 +45,7 @@ DWORD WINAPI HandleConnectRequest(LPVOID param) {
     GetWindowTextW(GetDlgItem(hWnd, IDC_IP_EDIT), ip_w, sizeof(ip_w) / sizeof(WCHAR));
     GetWindowTextW(GetDlgItem(hWnd, IDC_USER_EDIT), user_w, sizeof(user_w) / sizeof(WCHAR));
     GetWindowTextW(GetDlgItem(hWnd, IDC_PASS_EDIT), pass_w, sizeof(pass_w) / sizeof(WCHAR));
-    GetWindowTextW(GetDlgItem(hWnd, IDC_PORT_EDIT_SSH), port_w, sizeof(port_w) / sizeof(WCHAR));  // 获取端口
+    GetWindowTextW(GetDlgItem(hWnd, IDC_PORT_EDIT_SSH), port_w, sizeof(port_w) / sizeof(WCHAR));
 
     // 转换为多字节
     U16toGBK(ip_w, ip, sizeof(ip));
@@ -81,21 +85,17 @@ DWORD WINAPI HandleConnectRequest(LPVOID param) {
     else {
         // 查找ssh_key目录中的第一个文件作为私钥
         WIN32_FIND_DATAA findData;
-        // 拼接路径（key_dir + "\*"）
         char search_path[MAX_PATH];
-        sprintf_s(search_path, MAX_PATH, "%s\\*", key_dir);  // 使用 sprintf_s 安全拼接
+        sprintf_s(search_path, MAX_PATH, "%s\\*", key_dir);
 
-        // 正确调用 FindFirstFileA
         HANDLE hFind = FindFirstFileA(search_path, &findData);
 
         if (hFind != INVALID_HANDLE_VALUE) {
             do {
-                // 跳过目录和当前/上级目录
                 if (!(findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
                     strcmp(findData.cFileName, ".") != 0 &&
                     strcmp(findData.cFileName, "..") != 0) {
 
-                    // 找到第一个文件，作为私钥
                     sprintf_s(key_path, MAX_PATH, "%s\\%s", key_dir, findData.cFileName);
                     use_key_auth = true;
                     break;
@@ -151,38 +151,58 @@ DWORD WINAPI HandleConnectRequest(LPVOID param) {
     AddLog(hWnd, err_msg_w);
 
     if (success) {
-        // 连接成功后上传API脚本
-        AddLog(hWnd, L"正在检查API脚本是否安装为最新...");
-        if (l4d2_ssh_upload_api_script(g_ssh_ctx, err_msg, sizeof(err_msg))) {
-            GBKtoU16(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
-            AddLog(hWnd, err_msg_w);
+        // 检查是否需要执行依赖检查（根据勾选框状态）
+        bool checkDependencies = IsDlgButtonChecked(hWnd, IDC_DEPENDENCY_CHECK) == BST_CHECKED;
 
-            // 新增：执行依赖检查与安装
-            AddLog(hWnd, L"正在检查并安装脚本依赖...");
-            char dep_output[4096] = { 0 };
-            WCHAR output_w[4096];
-            // 获取配置的远程路径
-            std::string remoteRoot = GetRemoteRootPath();
-            std::string command = remoteRoot + "/L4D2_Manager_API.sh check_deps";
-            bool dep_success = l4d2_ssh_exec_command(
-                g_ssh_ctx,
-                command.c_str(),
-                dep_output, sizeof(dep_output),
-                err_msg, sizeof(err_msg)
-            );
-            GBKtoU16(dep_output, output_w, sizeof(output_w) / sizeof(WCHAR));
-            AddLog(hWnd, output_w);
+        if (checkDependencies) {
+            AddLog(hWnd, L"用户选择执行依赖检查，开始处理...");
 
-            if (dep_success) {
-                UpdateConnectionStatus(hWnd, L"已连接，且依赖安装成功", TRUE);
-                HandleGetStatus(hWnd);  // 刷新状态
-                HandleGetInstances(hWnd);
-            }
-            else {
+            // 仅在需要依赖检查时，才检查API脚本是否为最新
+            AddLog(hWnd, L"正在检查API脚本是否安装为最新...");
+            if (l4d2_ssh_upload_api_script(g_ssh_ctx, err_msg, sizeof(err_msg))) {
                 GBKtoU16(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
                 AddLog(hWnd, err_msg_w);
-                UpdateConnectionStatus(hWnd, L"已连接，但依赖安装失败", FALSE);
+
+                // 执行依赖检查
+                AddLog(hWnd, L"正在检查并安装脚本依赖...");
+                char dep_output[4096] = { 0 };
+                WCHAR output_w[4096];
+                std::string remoteRoot = GetRemoteRootPath();
+                std::string command = remoteRoot + "/L4D2_Manager_API.sh check_deps";
+                bool dep_success = l4d2_ssh_exec_command(
+                    g_ssh_ctx,
+                    command.c_str(),
+                    dep_output, sizeof(dep_output),
+                    err_msg, sizeof(err_msg)
+                );
+                GBKtoU16(dep_output, output_w, sizeof(output_w) / sizeof(WCHAR));
+                AddLog(hWnd, output_w);
+
+                if (dep_success) {
+                    UpdateConnectionStatus(hWnd, L"已连接，且依赖安装成功", TRUE);
+                    HandleGetStatus(hWnd);  // 刷新状态
+                    HandleGetInstances(hWnd);
+                }
+                else {
+                    GBKtoU16(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
+                    AddLog(hWnd, err_msg_w);
+                    UpdateConnectionStatus(hWnd, L"已连接，但依赖安装失败", FALSE);
+                }
             }
+            else {
+                // API脚本检查/上传失败
+                GBKtoU16(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
+                AddLog(hWnd, L"API脚本检查/更新失败:");
+                AddLog(hWnd, err_msg_w);
+                UpdateConnectionStatus(hWnd, L"已连接，但API脚本异常", FALSE);
+            }
+        }
+        else {
+            // 不执行依赖检查时，直接标记为已连接，跳过脚本检查和依赖安装
+            AddLog(hWnd, L"用户选择跳过依赖检查，直接连接");
+            UpdateConnectionStatus(hWnd, L"已连接", TRUE);
+            HandleGetStatus(hWnd);  // 刷新状态
+            HandleGetInstances(hWnd);
         }
     }
     else {
@@ -190,7 +210,11 @@ DWORD WINAPI HandleConnectRequest(LPVOID param) {
     }
 
     return 0;
+
+
+    return 0;
 }
+
 
 
 
@@ -359,7 +383,57 @@ DWORD WINAPI HandleStopInstance(LPVOID param) {
     return 0;
 }
 
-// 处理部署服务器请求（线程函数）
+// 行处理回调函数
+void ProcessOutputLine(HWND hWnd, const char* line) {
+    if (!line || !*line) return;
+
+    // 转换为宽字符用于日志显示
+    WCHAR line_w[2048];
+    GBKtoU16(line, line_w, sizeof(line_w) / sizeof(WCHAR));
+    AddLog(hWnd, line_w);
+
+    // 解析进度信息
+    const char* progress_prefix = "Update state (0x5) verifying install, progress: ";
+    if (strstr(line, progress_prefix)) {
+        char progress_str[16] = { 0 };
+        // 提取进度百分比
+        sscanf(line + strlen(progress_prefix), "%15[^(]", progress_str);
+
+        // 转换为浮点数
+        float progress = atof(progress_str);
+
+        // 发送进度消息到窗口
+        PostMessage(hWnd, WM_USER_PROGRESS_UPDATE, (WPARAM)(int)(progress * 100), 0);
+    }
+}
+
+// 辅助函数：创建进度条窗口（覆盖"部署/更新服务器"按钮）
+HWND CreateProgressWindow(HWND hParent) {
+    // 1. 先隐藏原部署按钮
+    HWND hDeployBtn = GetDlgItem(hParent, IDC_DEPLOY_BTN);
+    ShowWindow(hDeployBtn, SW_HIDE);
+
+    // 2. 创建与按钮大小和位置完全相同的进度条窗口
+    // 位置和大小与"部署/更新服务器"按钮完全一致：x=30, y=340, 宽=440, 高=30
+    HWND hWnd = CreateWindowEx(0, L"STATIC", L"正在部署服务器...",
+        WS_CHILD | WS_VISIBLE | WS_BORDER | SS_CENTER,
+        30, 340, 440, 30, hParent, NULL, GetModuleHandle(NULL), NULL);
+
+    // 3. 在窗口中添加进度条控件，适应窗口大小
+    CreateWindowEx(0, PROGRESS_CLASS, L"",
+        WS_CHILD | WS_VISIBLE | PBS_SMOOTH,
+        5, 5, 430, 20,  // 边距5px，填满整个窗口
+        hWnd, (HMENU)1001, GetModuleHandle(NULL), NULL);
+
+    // 4. 设置窗口背景为白色，与按钮外观协调
+    HBRUSH hBrush = (HBRUSH)(COLOR_WINDOW + 1);
+    SetClassLongPtr(hWnd, GCLP_HBRBACKGROUND, (LONG_PTR)hBrush);
+    RedrawWindow(hWnd, NULL, NULL, RDW_ERASE | RDW_INVALIDATE);
+
+    return hWnd;
+}
+
+// 处理部署服务器请求（带进度显示）
 DWORD WINAPI HandleDeployServer(LPVOID param) {
     HWND hWnd = (HWND)param;
     if (!g_ssh_ctx || !g_ssh_ctx->is_connected) {
@@ -368,34 +442,50 @@ DWORD WINAPI HandleDeployServer(LPVOID param) {
     }
 
     AddLog(hWnd, L"开始部署/更新服务器(已部署则检查更新，若可更新则需要耗费一定时间，取决于你服务器带宽)...");
-    char output[4096] = { 0 }, err_msg[256] = { 0 };
+
+    // 创建进度条窗口（覆盖部署按钮）
+    HWND hProgressWnd = CreateProgressWindow(hWnd);
+    if (!hProgressWnd) {
+        AddLog(hWnd, L"创建进度条窗口失败");
+        // 确保按钮可见
+        ShowWindow(GetDlgItem(hWnd, IDC_DEPLOY_BTN), SW_SHOW);
+        return 0;
+    }
 
     // 获取配置的远程路径
     std::string remoteRoot = GetRemoteRootPath();
     std::string command = remoteRoot + "/L4D2_Manager_API.sh deploy_server";
 
-    bool success = l4d2_ssh_exec_command(
+    char err_msg[256] = { 0 };
+
+    // 使用逐行读取的SSH命令执行函数
+    bool success = l4d2_ssh_exec_command_rl(
         g_ssh_ctx,
         command.c_str(),
-        output, sizeof(output),
-        err_msg, sizeof(err_msg)
+        ProcessOutputLine,  // 行处理回调
+        hWnd,
+        err_msg,
+        sizeof(err_msg)
     );
 
-    WCHAR output_w[4096], err_msg_w[256];
-    GBKtoU16(output, output_w, sizeof(output_w) / sizeof(WCHAR));
-    GBKtoU16(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
+    // 关闭进度条窗口并恢复按钮显示
+    DestroyWindow(hProgressWnd);
+    ShowWindow(GetDlgItem(hWnd, IDC_DEPLOY_BTN), SW_SHOW);
 
-    AddLog(hWnd, output_w);
     if (success) {
         AddLog(hWnd, L"服务器部署/更新完成");
         HandleGetStatus(hWnd);  // 刷新状态
     }
     else {
+        WCHAR err_msg_w[256];
+        GBKtoU16(err_msg, err_msg_w, sizeof(err_msg_w) / sizeof(WCHAR));
         AddLog(hWnd, err_msg_w);
     }
 
     return 0;
 }
+
+
 
 // 处理获取服务器状态请求（线程函数）
 DWORD WINAPI HandleGetStatus(LPVOID param) {

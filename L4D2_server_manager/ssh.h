@@ -46,6 +46,11 @@ bool l4d2_ssh_upload_api_script(L4D2_SSH_Context* ctx, char* err_msg, int err_le
 // 执行远程命令并获取输出
 bool l4d2_ssh_exec_command(L4D2_SSH_Context* ctx, const char* cmd, char* output, int output_len, char* err_msg, int err_len);
 
+// 执行远程命令并获取输出
+bool l4d2_ssh_exec_command_rl(L4D2_SSH_Context* ctx, const char* cmd,
+    void (*line_callback)(HWND, const char*),
+    HWND hWnd, char* err_msg, int err_len);
+
 // 断开连接并释放资源
 void l4d2_ssh_cleanup(L4D2_SSH_Context* ctx);
 

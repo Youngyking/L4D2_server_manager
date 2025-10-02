@@ -23,6 +23,7 @@
 #include <string>
 
 #define MAX_LOADSTRING 100
+#define WM_USER_PROGRESS_UPDATE (WM_USER + 100)  // 使用WM_USER加上偏移量定义自定义消息
 
 // 全局变量:
 HINSTANCE hInst;                                // 当前实例
@@ -359,6 +360,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     case WM_DESTROY:
         PostQuitMessage(0);
         break;
+    case WM_USER_PROGRESS_UPDATE: {  // 现在可以正确识别这个消息
+        // wParam 包含进度值（0-10000，代表0.00%-100.00%）
+        HWND hProgressWnd = FindWindowEx(hWnd, NULL, L"STATIC", L"正在部署服务器...");
+        if (hProgressWnd) {
+            HWND hProgress = GetDlgItem(hProgressWnd, 1001);
+            if (hProgress) {
+                SendMessage(hProgress, PBM_SETRANGE, 0, MAKELPARAM(0, 10000));
+                SendMessage(hProgress, PBM_SETPOS, wParam, 0);
+            }
+        }
+    }
+        break;
     default:
         return DefWindowProc(hWnd, message, wParam, lParam);
     }
@@ -366,8 +379,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 }
 
 // “关于”框的消息处理程序。
-INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
-{
+INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam){
     UNREFERENCED_PARAMETER(lParam);
     switch (message)
     {

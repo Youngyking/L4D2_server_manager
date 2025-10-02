@@ -793,3 +793,95 @@ void l4d2_ssh_cleanup(L4D2_SSH_Context* ctx) {
         free(ctx);
     }
 }
+
+
+bool l4d2_ssh_exec_command_rl(L4D2_SSH_Context* ctx, const char* cmd,
+    void (*line_callback)(HWND, const char*),
+    HWND hWnd, char* err_msg, int err_len) {
+    if (!ctx || !ctx->is_connected) {
+        snprintf(err_msg, err_len, "未建立SSH连接");
+        return false;
+    }
+
+    ssh_channel channel = ssh_channel_new(ctx->session);
+    if (!channel) {
+        snprintf(err_msg, err_len, "创建通道失败");
+        return false;
+    }
+
+    int rc = ssh_channel_open_session(channel);
+    if (rc != SSH_OK) {
+        snprintf(err_msg, err_len, "打开通道失败: %s", ssh_get_error(ctx->session));
+        ssh_channel_free(channel);
+        return false;
+    }
+
+    // 准备命令（编码转换）
+    char cmd_u8[256];
+    GBKtoU8(cmd, cmd_u8, 256);
+    rc = ssh_channel_request_exec(channel, cmd_u8);
+    if (rc != SSH_OK) {
+        snprintf(err_msg, err_len, "执行命令失败: %s", ssh_get_error(ctx->session));
+        ssh_channel_close(channel);
+        ssh_channel_free(channel);
+        return false;
+    }
+
+    // 逐行读取输出
+    char buffer_u8[1024];
+    char buffer_gbk[1024];
+    char line_buf[2048] = { 0 };
+    int nbytes;
+    int line_pos = 0;
+
+    while ((nbytes = ssh_channel_read(channel, buffer_u8, sizeof(buffer_u8) - 1, 0)) > 0) {
+        buffer_u8[nbytes] = '\0';
+        U8toGBK(buffer_u8, buffer_gbk, 1024);
+
+        // 按行分割
+        for (int i = 0; i < nbytes && buffer_gbk[i] != '\0'; i++) {
+            if (buffer_gbk[i] == '\n' || buffer_gbk[i] == '\r') {
+                if (line_pos > 0) {
+                    line_buf[line_pos] = '\0';
+                    // 调用行处理回调函数
+                    if (line_callback) {
+                        line_callback(hWnd, line_buf);
+                    }
+                    line_pos = 0;
+                    memset(line_buf, 0, sizeof(line_buf));
+                }
+            }
+            else {
+                if (line_pos < sizeof(line_buf) - 1) {
+                    line_buf[line_pos++] = buffer_gbk[i];
+                }
+            }
+        }
+    }
+
+    // 处理最后一行（如果存在）
+    if (line_pos > 0) {
+        line_buf[line_pos] = '\0';
+        if (line_callback) {
+            line_callback(hWnd, line_buf);
+        }
+    }
+
+    if (nbytes < 0) {
+        snprintf(err_msg, err_len, "读取输出失败: %s", ssh_get_error(ctx->session));
+        ssh_channel_close(channel);
+        ssh_channel_free(channel);
+        return false;
+    }
+
+    ssh_channel_close(channel);
+    int exit_status = ssh_channel_get_exit_status(channel);
+    ssh_channel_free(channel);
+
+    if (exit_status != 0) {
+        snprintf(err_msg, err_len, "命令执行失败（退出码: %d）", exit_status);
+        return false;
+    }
+
+    return true;
+}

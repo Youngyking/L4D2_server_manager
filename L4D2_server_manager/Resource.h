@@ -45,5 +45,6 @@
 #define IDC_KEY_PROMPT       105
 #define IDC_PORT_EDIT_SSH    106
 #define IDC_ADMIN_CONFIG_BTN 109
+#define IDC_DEPENDENCY_CHECK         1027  // 依赖检查勾选框
 
 #endif 

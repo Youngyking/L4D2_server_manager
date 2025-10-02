@@ -45,6 +45,11 @@ REQUIRED_PACKAGES=(
     "expect"
 )
 
+STEAM_REGION="cn"  # 下载地区代码（可选：cn, hk, us, eu, jp等，国内建议用cn）
+HTTP_PROXY=""      # 可选代理（如http://127.0.0.1:1080，无需代理则留空）
+WGET_RETRIES=1     # 下载重试次数
+WGET_TIMEOUT=30    # 单次下载超时（秒）
+
 # #################################################################
 
 
@@ -111,27 +116,56 @@ function Check-And-Install-Dependencies() {
 
 
 function Deploy-L4D2Server_NonInteractive() {
-    echo "--- 开始部署/更新 L4D2 服务器 ---"
+    echo "--- 开始部署/更新 L4D2 服务器 (加速模式) ---"
     local steamcmd_executable="$SteamCMDDir/steamcmd.sh"
 
+    # 1. 优化SteamCMD下载（使用断点续传和重试）
     if [ ! -f "$steamcmd_executable" ]; then
         echo "未找到 SteamCMD，尝试自动下载..."
         mkdir -p "$SteamCMDDir"
-        wget -O "$SteamCMDDir/steamcmd_linux.tar.gz" "https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz"
+        # 替换为更稳定的CDN链接，添加断点续传和重试
+        wget -c \
+             --tries=$WGET_RETRIES \
+             --timeout=$WGET_TIMEOUT \
+             -O "$SteamCMDDir/steamcmd_linux.tar.gz" \
+             "https://steamcdn.akamaihd.net/client/installer/steamcmd_linux.tar.gz" \
+             || { echo "错误：SteamCMD下载失败"; return 1; }
+        # 解压并清理
         tar -xvzf "$SteamCMDDir/steamcmd_linux.tar.gz" -C "$SteamCMDDir"
         rm "$SteamCMDDir/steamcmd_linux.tar.gz"
     fi
 
-    # 优先使用环境变量中的用户名和密码
+    # 2. 构建SteamCMD命令（添加地区参数和代理）
+    local steamcmd_args=(
+        "+force_install_dir" "$ServerRoot"
+        "+login"
+    )
+    # 处理登录信息
     if [ -n "$STEAM_USER" ] && [ -n "$STEAM_PASSWORD" ]; then
         echo "使用账户: $STEAM_USER"
-        unbuffer "$steamcmd_executable" +force_install_dir "$ServerRoot" +login "$STEAM_USER" "$STEAM_PASSWORD" +app_update 222860 validate +quit | sed -u 's/\x1b\[[0-9;]*[a-zA-Z]//g'
+        steamcmd_args+=("$STEAM_USER" "$STEAM_PASSWORD")
     else
-        # 否则，使用匿名登录
-        echo "使用匿名 (anonymous) 登录。"
-        unbuffer "$steamcmd_executable" +force_install_dir "$ServerRoot" +login anonymous +app_update 222860 validate +quit | sed -u 's/\x1b\[[0-9;]*[a-zA-Z]//g'
+        echo "使用匿名登录"
+        steamcmd_args+=("anonymous")
+    fi
+    # 添加核心更新参数（指定地区加速）
+    steamcmd_args+=(
+        "+set_steam_region" "$STEAM_REGION"  # 地区优化
+        "+app_update" "222860" "validate"    # L4D2服务器AppID
+        "+quit"
+    )
+
+    # 3. 执行SteamCMD（支持代理）
+    echo "开始更新服务器文件（地区：$STEAM_REGION）..."
+    if [ -n "$HTTP_PROXY" ]; then
+        echo "使用代理：$HTTP_PROXY"
+        http_proxy="$HTTP_PROXY" https_proxy="$HTTP_PROXY" \
+        unbuffer "$steamcmd_executable" "${steamcmd_args[@]}" | sed -u 's/\x1b\[[0-9;]*[a-zA-Z]//g'
+    else
+        unbuffer "$steamcmd_executable" "${steamcmd_args[@]}" | sed -u 's/\x1b\[[0-9;]*[a-zA-Z]//g'
     fi
     
+    # 检查执行结果
     if [ ${PIPESTATUS[0]} -eq 0 ]; then
         echo "--- L4D2 服务器文件部署/更新成功! ---"
     else

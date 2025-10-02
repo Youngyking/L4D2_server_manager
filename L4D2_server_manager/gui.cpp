@@ -32,7 +32,7 @@ void CreateAllControls(HWND hWnd, HINSTANCE hInst) {
     // 1. SSH连接区
     CreateWindowW(L"BUTTON", L"SSH连接设置",
         WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
-        10, 10, 980, 100, hWnd, (HMENU)IDC_SSH_GROUP, hInst, NULL);  // 增加高度以容纳新元素
+        10, 10, 980, 120, hWnd, (HMENU)IDC_SSH_GROUP, hInst, NULL);  // 增加高度以容纳新元素
 
     // 1.1 IP地址输入
     CreateWindowW(L"STATIC", L"服务器IP:",
@@ -40,46 +40,62 @@ void CreateAllControls(HWND hWnd, HINSTANCE hInst) {
         30, 30, 80, 20, hWnd, NULL, hInst, NULL);
     CreateWindowW(L"EDIT", L"xxx.xxx.xxx.xxx",
         WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-        120, 30, 150, 25, hWnd, (HMENU)IDC_IP_EDIT, hInst, NULL);  // 缩短宽度以给端口框留出空间
+        100, 30, 150, 25, hWnd, (HMENU)IDC_IP_EDIT, hInst, NULL);  // 缩短宽度以给端口框留出空间
 
     // 1.1.1 SSH端口输入（新增）
     CreateWindowW(L"STATIC", L"端口:",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
-        290, 30, 50, 20, hWnd, NULL, hInst, NULL);
+        260, 30, 40, 20, hWnd, NULL, hInst, NULL);
     CreateWindowW(L"EDIT", L"22",  // 默认端口22
         WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-        340, 30, 80, 25, hWnd, (HMENU)IDC_PORT_EDIT_SSH, hInst, NULL);  // 新增端口输入框
+        300, 30, 40, 25, hWnd, (HMENU)IDC_PORT_EDIT_SSH, hInst, NULL);  // 新增端口输入框
 
     // 1.2 用户名输入
     CreateWindowW(L"STATIC", L"用户名:",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
-        440, 30, 80, 20, hWnd, NULL, hInst, NULL);  // 调整位置
+        370, 30, 60, 20, hWnd, NULL, hInst, NULL);  // 调整位置
     CreateWindowW(L"EDIT", L"root",
         WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-        530, 30, 150, 25, hWnd, (HMENU)IDC_USER_EDIT, hInst, NULL);  // 调整位置
+        435, 30, 150, 25, hWnd, (HMENU)IDC_USER_EDIT, hInst, NULL);  // 调整位置
 
     // 1.3 密码输入
     CreateWindowW(L"STATIC", L"密码:",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
-        700, 30, 80, 20, hWnd, NULL, hInst, NULL);  // 调整位置
+        600, 30, 50, 20, hWnd, NULL, hInst, NULL);  // 调整位置
     CreateWindowW(L"EDIT", L"",
         WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL | ES_PASSWORD,
-        780, 30, 150, 25, hWnd, (HMENU)IDC_PASS_EDIT, hInst, NULL);  // 调整位置
+        660, 30, 150, 25, hWnd, (HMENU)IDC_PASS_EDIT, hInst, NULL);  // 调整位置
+
+    CreateWindowW(
+        L"BUTTON",                  // 类名：必须是BUTTON，而非CHECKBOX
+        L"进行远程脚本内容更新与依赖检查",            // 显示文本
+        WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX | WS_TABSTOP,  // 样式控制为复选框
+        630, 77, 250, 30,            // 左上角位置(30,30)，宽200，高30（足够大）
+        hWnd,                       // 父窗口句柄
+        (HMENU)IDC_DEPENDENCY_CHECK, // 控件ID
+        hInst,                      // 实例句柄
+        NULL
+    );
+
+    //// 新增：依赖检查提示文本
+    //CreateWindowW(L"STATIC", L"（首次使用请勾选）",
+    //    WS_CHILD | WS_VISIBLE | SS_LEFT,
+    //    840, 85, 100, 20, hWnd, NULL, hInst, NULL);
 
     // 1.4 连接按钮（修改文本）
     CreateWindowW(L"BUTTON", L"使用密码/密钥登录",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        860, 60, 130, 25, hWnd, (HMENU)IDC_CONNECT_BTN, hInst, NULL);  // 调整位置和文本
+        860, 30, 130, 25, hWnd, (HMENU)IDC_CONNECT_BTN, hInst, NULL);  // 调整位置和文本
 
     // 1.5 连接状态
     CreateWindowW(L"STATIC", L"未连接",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
-        30, 60, 200, 20, hWnd, (HMENU)IDC_CONN_STATUS, hInst, NULL);
+        30, 60, 100, 20, hWnd, (HMENU)IDC_CONN_STATUS, hInst, NULL);
 
     // 1.6 密钥登录提示（新增）
     CreateWindowW(L"STATIC", L"密钥登录需要将私钥放于根目录的ssh_key文件夹，密钥若需要口令则在密码栏中填入。",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
-        30, 85, 800, 20, hWnd, (HMENU)IDC_KEY_PROMPT, hInst, NULL);
+        30, 85, 600, 20, hWnd, (HMENU)IDC_KEY_PROMPT, hInst, NULL);
 
     // 2. 系统状态面板（调整高度以完全包含所有按钮）
     CreateWindowW(L"BUTTON", L"系统状态 & 核心操作",
